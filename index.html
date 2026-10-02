@@ -8,10 +8,10 @@
 <!-- 注意：这个标题就是微信里转发时预览卡片上显示的文字。
      千万不要写成「给你的一封信」之类，否则她还没点开就知道是什么了。
      要保持「就是个小游戏」的错觉。 -->
-<title>你能通三关吗？</title>
-<meta name="description" content="三个小关卡，看看你能过几关。">
-<meta property="og:title" content="你能通三关吗？">
-<meta property="og:description" content="三个小关卡，看看你能过几关。">
+<title>你能通四关吗？</title>
+<meta name="description" content="四个小关卡，看看你能过几关。">
+<meta property="og:title" content="你能通四关吗？">
+<meta property="og:description" content="四个小关卡，看看你能过几关。">
 <meta property="og:type" content="website">
 <script>
 /* 兜底诊断：脚本一旦报错就在页面底部显示出来，方便截图反馈。
@@ -211,7 +211,7 @@
     border:1px solid rgba(255,182,213,.22);
     background: radial-gradient(100% 80% at 50% 0%, rgba(255,107,157,.10), rgba(255,255,255,.015));
   }
-  /* 三个关卡共用一个舞台，一次只显示一个 */
+  /* 四个关卡共用一个舞台，一次只显示一个 */
   .stagePane{
     position:relative; width:100%; height:min(46vh, 330px); min-height:220px;
     display:none;
@@ -220,6 +220,11 @@
   #gameCanvas{
     display:block; width:100%; height:100%;
     touch-action:none; cursor:none;
+  }
+  /* ── 第 4 关：抓娃娃 ── */
+  #clawCanvas{
+    display:block; width:100%; height:100%;
+    touch-action:manipulation; cursor:pointer;
   }
 
   /* ── 第 2 关：打地鼠 ── */
@@ -363,7 +368,7 @@
 
 <button id="musicBtn" class="paused" title="播放/暂停音乐">🔇</button>
 
-<!-- ══════════ 场景 1：小游戏（三关，页面入口） ══════════ -->
+<!-- ══════════ 场景 1：小游戏（四关，页面入口） ══════════ -->
 <section class="scene active" id="sceneGame">
   <div class="card">
     <div class="gameHud">
@@ -376,15 +381,16 @@
       <div class="stagePane on" id="catchStage"><canvas id="gameCanvas"></canvas></div>
       <div class="stagePane" id="moleStage"><div class="moleGrid" id="moleGrid"></div></div>
       <div class="stagePane" id="memStage"><div class="memGrid" id="memGrid"></div></div>
+      <div class="stagePane" id="clawStage"><canvas id="clawCanvas"></canvas></div>
 
       <div class="gameMask show" id="gameMask">
         <h3 id="maskTitle">小游戏</h3>
-        <p id="maskText">一共三关，每关玩法都不一样。<br>准备好了就点开始吧。</p>
+        <p id="maskText">一共四关，每关玩法都不一样。<br>准备好了就点开始吧。</p>
         <button class="btn" id="maskBtn">开始</button>
       </div>
     </div>
 
-    <p class="gameTip" id="gameTip">一共三关，每关玩法都不一样。</p>
+    <p class="gameTip" id="gameTip">一共四关，每关玩法都不一样。</p>
   </div>
 </section>
 
@@ -483,14 +489,15 @@ const CONFIG = {
   bgmFile:   'bgm.mp3',   // 也可以换成 '我们俩.mp3' 等任意文件名；填 '' 表示只用内置音乐
   bgmVolume: 0.6,         // 歌曲音量 0~1
 
-  // ── 小游戏：三个不同类型的关卡 ──
+  // ── 小游戏：四个不同类型的关卡 ──
   // 页面一打开就是小游戏，看起来就是个普通的休闲游戏。
   // 每关限时，达成目标或时间到都会进入下一关（绝对不会卡住玩不下去）；
-  // 三关全部结束的那一刻，才会突然反转成表白。
+  // 四关全部结束的那一刻，才会突然反转成表白。
   games: {
     catch:  { time: 26, goal: 15, bombs: true },  // 第 1 关：接住掉落的星星，避开炸弹
     mole:   { time: 26, goal: 12 },               // 第 2 关：打地鼠
-    memory: { pairs: 4, time: 90 },               // 第 3 关：翻牌配对（配完触发反转）
+    memory: { pairs: 4, time: 90 },               // 第 3 关：翻牌配对
+    claw:   { time: 40, goal: 3,  neverMiss: true }, // 第 4 关：抓娃娃（配完触发反转）
   },
 
   // 结局文案
@@ -588,7 +595,7 @@ function sparkle(c, x, y, s, rot, color, alpha){
 /* ── 背景往上飘的粒子 ──
    反转之前飘的是中性小星星（白 / 浅蓝 / 淡金 / 淡绿 / 淡紫），
    绝对不能用粉色爱心——否则整个游戏过程中背景都在暗示「这是表白」，
-   等她玩到第三关，惊喜早就泄光了。
+   等她玩到第四关，惊喜早就泄光了。
    反转的那一刻整片背景会一起变成爱心，落差才够大。 */
 const AMBIENT_GAME_PAL = ['#ffffff','#cfe4ff','#ffe9a8','#a8f0c0','#d9c9ff'];
 const AMBIENT_LOVE_PAL = ['#ff6b9d','#ffa8c5'];
@@ -1109,7 +1116,7 @@ async function typeInto(el, text, speed){
 
 /* ══════════════ 小游戏：三个不同类型的关卡 ══════════════
    页面一打开就是这里，看起来就是个普通的休闲小游戏。
-   三关全部玩完之后，才会突然反转成表白。 */
+   四关全部玩完之后，才会突然反转成表白。 */
 const Games = (() => {
   const mask      = document.getElementById('gameMask');
   const maskTitle = document.getElementById('maskTitle');
@@ -1125,6 +1132,7 @@ const Games = (() => {
   const paneCatch = document.getElementById('catchStage');
   const paneMole  = document.getElementById('moleStage');
   const paneMem   = document.getElementById('memStage');
+  const paneClaw  = document.getElementById('clawStage');
   const flash     = document.getElementById('glitchFlash');
 
   let index = -1;             // 当前第几关（0 起）
@@ -1146,6 +1154,7 @@ const Games = (() => {
     paneCatch.classList.toggle('on', name === 'catch');
     paneMole .classList.toggle('on', name === 'mole');
     paneMem  .classList.toggle('on', name === 'memory');
+    paneClaw .classList.toggle('on', name === 'claw');
   }
   function setHud(no, total, scoreText, timeText){
     hudStage.textContent = '第 ' + no + ' / ' + total + ' 关';
@@ -1289,7 +1298,7 @@ const Games = (() => {
       g.restore();
     }
 
-    const updateHud = () => setHud(1, 3, score + ' / ' + CFG.goal, Math.max(0, Math.ceil(timeLeft)));
+    const updateHud = () => setHud(1, TOTAL, score + ' / ' + CFG.goal, Math.max(0, Math.ceil(timeLeft)));
 
     function finish(){
       running = false;
@@ -1421,7 +1430,7 @@ const Games = (() => {
     }
 
     const setHole = (i, up) => holes[i].classList.toggle('up', up);
-    const updateHud = () => setHud(2, 3, score + ' / ' + CFG.goal, Math.max(0, Math.ceil(timeLeft)));
+    const updateHud = () => setHud(2, TOTAL, score + ' / ' + CFG.goal, Math.max(0, Math.ceil(timeLeft)));
 
     function pick(){
       let i = upIndex;
@@ -1504,7 +1513,7 @@ const Games = (() => {
     let first = null, lock = false, matched = 0;
     let timeLeft = 0, raf = null, last = 0, running = false;
 
-    const updateHud = () => setHud(3, 3, matched + ' / ' + CFG.pairs, Math.max(0, Math.ceil(timeLeft)));
+    const updateHud = () => setHud(3, TOTAL, matched + ' / ' + CFG.pairs, Math.max(0, Math.ceil(timeLeft)));
 
     function build(){
       grid.innerHTML = '';
@@ -1607,18 +1616,418 @@ const Games = (() => {
   })();
 
   /* ─────────────────────────────────────────────
+     第 4 关：抓娃娃
+     ─────────────────────────────────────────────
+     这一关是特意为她加的：现实里那台抓娃娃机一次都没让他们抓到。
+     所以这一关的设计前提就是【永远抓得到】——
+     爪子下去，一定会抓住离它最近的那只娃娃，不存在失手。
+     她能决定的只是先抓哪一只。
+
+     这不是难度问题，是补偿。 */
+  const ClawStage = (() => {
+    const cv = document.getElementById('clawCanvas');
+    const g  = cv.getContext('2d');
+    const CFG = CONFIG.games.claw;
+
+    /* 五种小娃娃，全用几何图形画，不依赖系统 emoji 字体 */
+    const KINDS = {
+      bear:  { body:'#c08a52', ear:'#a8743f', face:'#eccfa6', earShape:'round' },
+      bunny: { body:'#f2ecf4', ear:'#f2ecf4', face:'#ffffff', earShape:'long'  },
+      cat:   { body:'#f2a552', ear:'#f2a552', face:'#ffd9a8', earShape:'tri'   },
+      panda: { body:'#f4f4f8', ear:'#3b3b47', face:'#ffffff', earShape:'round', patch:'#3b3b47' },
+      duck:  { body:'#ffd94d', ear:'#ffc82e', face:'#ffe98a', earShape:'round', beak:true },
+    };
+    const ORDER = ['bear','bunny','cat','panda','duck'];
+
+    let W = 0, H = 0, DPR = 1;
+    let row = [];                      // 台面上的娃娃
+    let clawX = 0, dir = 1, clawY = 0, fromX = 0, toX = 0;
+    let target = null, held = null, fallP = 0;
+    let state = 'idle', st = 0;
+    let sparks = [];
+    let score = 0, timeLeft = 0, raf = null, last = 0, running = false;
+    let loveMode = false;              // 反转后：娃娃全部变成爱心
+
+    const RAIL_Y = 16, TOP_Y = 54, CHUTE_X = 26, FLOOR_PAD = 20;
+    const PH = { down:.44, grab:.15, up:.46, toChute:.52, release:.26, back:.32 };
+
+    const R = () => Math.max(13, Math.min(20, W * 0.052));
+    const floorY = () => H - FLOOR_PAD;
+    const grabY  = () => floorY() - 2 * R() - 12;   // 爪子停在这里时，抓着的娃娃正好落在地面
+    const holdY  = () => clawY + R() + 12;          // 吊在爪子下面的娃娃
+    const rowL   = () => 52 + R();
+    const rowR   = () => W - 12 - R();
+    const updateHud = () => setHud(4, TOTAL, score + ' / ' + CFG.goal, Math.max(0, Math.ceil(timeLeft)));
+    const go = (s) => { state = s; st = 0; };
+
+    function rr(c, x, y, w, h, r){
+      c.beginPath();
+      c.moveTo(x + r, y);
+      c.lineTo(x + w - r, y); c.quadraticCurveTo(x + w, y, x + w, y + r);
+      c.lineTo(x + w, y + h - r); c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      c.lineTo(x + r, y + h); c.quadraticCurveTo(x, y + h, x, y + h - r);
+      c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y);
+      c.closePath();
+    }
+
+    function resize(){
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
+      W = cv.clientWidth || 320;
+      H = cv.clientHeight || 300;
+      cv.width  = Math.max(1, Math.floor(W * DPR));
+      cv.height = Math.max(1, Math.floor(H * DPR));
+      g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    }
+
+    function buildRow(){
+      const r = R(), n = 5;
+      const L = rowL(), Rt = rowR();
+      row = [];
+      for (let i = 0; i < n; i++){
+        row.push({
+          kind: ORDER[i % ORDER.length],
+          x: L + (Rt - L) * (i / (n - 1)),
+          taken: false
+        });
+      }
+    }
+
+    /* ── 画一只小娃娃，(x,y) 是身体圆心，r 是半径 ── */
+    function drawPlush(c, kind, x, y, r){
+      const K = KINDS[kind] || KINDS.bear;
+      c.save();
+      // 影子
+      c.globalAlpha = .22; c.fillStyle = '#1a0d2a';
+      c.beginPath(); c.ellipse(x, floorY() - 1, r * .9, r * .18, 0, 0, Math.PI * 2); c.fill();
+      c.globalAlpha = 1;
+
+      // 耳朵
+      c.fillStyle = K.ear;
+      if (K.earShape === 'long'){
+        for (const s of [-1, 1]){
+          c.beginPath();
+          c.ellipse(x + s * r * .34, y - r * 1.12, r * .2, r * .48, s * .18, 0, Math.PI * 2);
+          c.fill();
+        }
+      } else if (K.earShape === 'tri'){
+        for (const s of [-1, 1]){
+          c.beginPath();
+          c.moveTo(x + s * r * .74, y - r * .58);
+          c.lineTo(x + s * r * .3,  y - r * 1.22);
+          c.lineTo(x + s * r * .04, y - r * .7);
+          c.closePath(); c.fill();
+        }
+      } else {
+        for (const s of [-1, 1]){
+          c.beginPath(); c.arc(x + s * r * .66, y - r * .7, r * .32, 0, Math.PI * 2); c.fill();
+        }
+      }
+
+      // 身体
+      c.fillStyle = K.body;
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+
+      // 脸
+      c.fillStyle = K.face;
+      c.beginPath(); c.ellipse(x, y + r * .16, r * .6, r * .48, 0, 0, Math.PI * 2); c.fill();
+
+      // 熊猫黑眼圈
+      if (K.patch){
+        c.fillStyle = K.patch;
+        for (const s of [-1, 1]){
+          c.beginPath();
+          c.ellipse(x + s * r * .3, y - r * .12, r * .23, r * .27, s * .34, 0, Math.PI * 2);
+          c.fill();
+        }
+      }
+
+      // 眼睛
+      c.fillStyle = '#2a2233';
+      for (const s of [-1, 1]){
+        c.beginPath(); c.arc(x + s * r * .3, y - r * .1, r * .095, 0, Math.PI * 2); c.fill();
+      }
+
+      // 鸭嘴 或 鼻子
+      if (K.beak){
+        c.fillStyle = '#ff9a3c';
+        c.beginPath(); c.ellipse(x, y + r * .3, r * .28, r * .15, 0, 0, Math.PI * 2); c.fill();
+      } else {
+        c.fillStyle = '#2a2233';
+        c.beginPath(); c.arc(x, y + r * .16, r * .075, 0, Math.PI * 2); c.fill();
+      }
+      c.restore();
+    }
+
+    /* 反转后用来替换娃娃的爱心，(x,y) 是爱心中心 */
+    function drawHeartAt(c, x, y, s, color){
+      c.save();
+      c.translate(x, y - s * .92);
+      c.fillStyle = color;
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.bezierCurveTo(0, -s * .5, -s, -s * .55, -s, s * .3);
+      c.bezierCurveTo(-s, s * .95, 0, s * 1.35, 0, s * 1.85);
+      c.bezierCurveTo(0, s * 1.35, s, s * .95, s, s * .3);
+      c.bezierCurveTo(s, -s * .55, 0, -s * .5, 0, 0);
+      c.fill();
+      c.restore();
+    }
+
+    function drawClaw(c, x, y, open){
+      c.save();
+      // 缆绳
+      c.strokeStyle = 'rgba(210,222,255,.55)'; c.lineWidth = 1.8;
+      c.beginPath(); c.moveTo(x, RAIL_Y + 5); c.lineTo(x, y - 11); c.stroke();
+      // 机头
+      rr(c, x - 12, y - 12, 24, 13, 4);
+      c.fillStyle = 'rgba(224,233,255,.94)'; c.fill();
+      // 爪钩
+      c.strokeStyle = 'rgba(240,245,255,.95)'; c.lineWidth = 3.2; c.lineCap = 'round';
+      const sp = open ? 11 : 4;
+      for (const s of [-1, 1]){
+        c.beginPath();
+        c.moveTo(x + s * 4, y - 1);
+        c.quadraticCurveTo(x + s * (sp + 5), y + 6, x + s * sp, y + 14);
+        c.stroke();
+      }
+      c.restore();
+    }
+
+    function draw(){
+      if (!W || !H) return;
+      g.clearRect(0, 0, W, H);
+      const r = R(), fy = floorY();
+
+      // 玻璃箱
+      rr(g, 6, 5, W - 12, H - 10, 14);
+      const grad = g.createLinearGradient(0, 5, 0, H - 5);
+      grad.addColorStop(0, 'rgba(120,150,255,.15)');
+      grad.addColorStop(1, 'rgba(255,150,205,.09)');
+      g.fillStyle = grad; g.fill();
+      g.strokeStyle = 'rgba(200,215,255,.32)'; g.lineWidth = 1.4; g.stroke();
+
+      // 玻璃反光
+      g.save();
+      g.globalAlpha = .065; g.fillStyle = '#ffffff';
+      g.beginPath();
+      g.moveTo(W * .17, 8); g.lineTo(W * .35, 8);
+      g.lineTo(W * .17, H - 8); g.lineTo(W * .03, H - 8);
+      g.closePath(); g.fill();
+      g.restore();
+
+      // 出货口
+      rr(g, 6, fy - 3, 44, 22, 7);
+      g.fillStyle = 'rgba(10,4,20,.86)'; g.fill();
+      g.strokeStyle = 'rgba(200,215,255,.26)'; g.lineWidth = 1.2; g.stroke();
+
+      // 横梁
+      rr(g, 18, RAIL_Y, W - 36, 7, 3.5);
+      g.fillStyle = 'rgba(190,205,245,.32)'; g.fill();
+
+      // 地面
+      g.strokeStyle = 'rgba(200,215,255,.15)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(14, fy + 3); g.lineTo(W - 14, fy + 3); g.stroke();
+
+      // 台面上的娃娃
+      for (const p of row){
+        if (p.taken) continue;
+        const y = fy - r;
+        if (loveMode) drawHeartAt(g, p.x, y, r * .92, '#ff6b9d');
+        else          drawPlush(g, p.kind, p.x, y, r);
+      }
+
+      // 抓着 / 掉落的娃娃
+      if (held){
+        if (state === 'release'){
+          const y0 = TOP_Y + r + 12;
+          const y1 = fy - r;
+          const y  = y0 + (y1 - y0) * fallP;
+          if (loveMode) drawHeartAt(g, CHUTE_X, y, r * .92, '#ff8fb4');
+          else          drawPlush(g, held.kind, CHUTE_X, y, r);
+        } else {
+          const y = holdY();
+          if (loveMode) drawHeartAt(g, clawX, y, r * .92, '#ff8fb4');
+          else          drawPlush(g, held.kind, clawX, y, r);
+        }
+      }
+
+      // 爪子（抓住东西的时候合上）
+      const closed = (state === 'grab' || state === 'up' || state === 'toChute');
+      drawClaw(g, clawX, clawY, !closed);
+
+      // 火花
+      for (const s of sparks){
+        g.save();
+        g.globalAlpha = Math.max(0, s.life);
+        g.fillStyle = s.c;
+        g.beginPath(); g.arc(s.x, s.y, s.r, 0, Math.PI * 2); g.fill();
+        g.restore();
+      }
+
+      // 还没开始抓时的手势提示
+      if (state === 'idle' && score === 0 && !loveMode){
+        g.save();
+        g.globalAlpha = .45 + Math.sin(performance.now() / 380) * .22;
+        g.fillStyle = '#ffd6e8';
+        g.font = '12px system-ui, sans-serif';
+        g.textAlign = 'center';
+        g.fillText('点一下，让爪子下去', W / 2, H - 6);
+        g.restore();
+      }
+    }
+
+    function popSparks(x, y){
+      const pal = ['#ffd700','#ffffff','#7ee8fa','#ffe066','#a8f0c0'];
+      for (let i = 0; i < 16; i++){
+        const a = Math.random() * Math.PI * 2, sp = Math.random() * 90 + 40;
+        sparks.push({
+          x, y,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 70,
+          r: Math.random() * 2.4 + 1.4,
+          life: 1,
+          c: pal[(Math.random() * pal.length) | 0]
+        });
+      }
+    }
+
+    /* 点一下 = 让爪子下去。
+       默认（neverMiss:true）永远抓得到最近的那一只，不存在失手。 */
+    function drop(){
+      if (!running || state !== 'idle') return;
+      let best = null, bd = 1e9;
+      for (const p of row){
+        if (p.taken) continue;
+        const d = Math.abs(p.x - clawX);
+        if (d < bd){ bd = d; best = p; }
+      }
+      if (!best){ buildRow(); return drop(); }   // 一排都抓光了就重新摆一排
+      // 把 neverMiss 关掉的话，就只有爪子正下方够得着才抓得到，否则空手而归
+      if (CFG.neverMiss === false && bd > R() * 1.15) best = null;
+      target = best;
+      fromX = clawX;
+      toX = best ? best.x : clawX;
+      go('down');
+    }
+
+    function finish(){
+      if (!running) return;
+      running = false;
+      cancelAnimationFrame(raf);
+      draw();
+      onStageEnd(score);
+    }
+
+    function frame(now){
+      if (!running) return;
+      const dt = Math.min(.05, (now - last) / 1000); last = now;
+      timeLeft -= dt; st += dt;
+
+      if (state === 'idle'){
+        clawX += dir * 118 * dt;
+        if (clawX > rowR()){ clawX = rowR(); dir = -1; }
+        if (clawX < rowL()){ clawX = rowL(); dir = 1; }
+      } else if (state === 'down'){
+        const p = Math.min(1, st / PH.down);
+        clawX = fromX + (toX - fromX) * p;
+        clawY = TOP_Y + (grabY() - TOP_Y) * p;
+        if (p >= 1){
+          // 抓到了。这一关不存在失手。
+          if (target){ target.taken = true; held = { kind: target.kind }; }
+          go('grab');
+        }
+      } else if (state === 'grab'){
+        if (st >= PH.grab) go('up');
+      } else if (state === 'up'){
+        const p = Math.min(1, st / PH.up);
+        clawY = grabY() + (TOP_Y - grabY()) * p;
+        if (p >= 1){
+          // 抓空的话就不用跑去出货口了，直接回中间
+          if (!held){ fromX = clawX; go('back'); }
+          else go('toChute');
+        }
+      } else if (state === 'toChute'){
+        const p = Math.min(1, st / PH.toChute);
+        clawX = toX + (CHUTE_X - toX) * p;
+        if (p >= 1){ fromX = CHUTE_X; go('release'); }
+      } else if (state === 'release'){
+        fallP = Math.min(1, st / PH.release);
+        if (fallP >= 1){
+          score++;
+          popSparks(CHUTE_X, floorY());
+          held = null; fallP = 0; target = null;
+          updateHud();
+          if (score >= CFG.goal){ draw(); finish(); return; }
+          fromX = CHUTE_X;
+          go('back');
+        }
+      } else if (state === 'back'){
+        const p = Math.min(1, st / PH.back);
+        clawX = fromX + (W / 2 - fromX) * p;
+        if (p >= 1) go('idle');
+      }
+
+      for (let i = sparks.length - 1; i >= 0; i--){
+        const s = sparks[i];
+        s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 280 * dt;
+        s.life -= dt * 1.6;
+        if (s.life <= 0) sparks.splice(i, 1);
+      }
+
+      if (timeLeft <= 0){
+        timeLeft = 0; updateHud(); draw(); finish(); return;
+      }
+      updateHud();
+      draw();
+      raf = requestAnimationFrame(frame);
+    }
+
+    cv.addEventListener('pointerdown', (e) => { e.preventDefault(); drop(); });
+
+    return {
+      reset(){
+        resize();
+        score = 0; timeLeft = CFG.time;
+        loveMode = false;
+        state = 'idle'; st = 0;
+        held = null; target = null; fallP = 0;
+        sparks = [];
+        buildRow();
+        clawX = (rowL() + rowR()) / 2; dir = 1; clawY = TOP_Y;
+        running = false;
+        draw(); updateHud();
+      },
+      start(){
+        resize();
+        running = true;
+        last = performance.now();
+        raf = requestAnimationFrame(frame);
+      },
+      stop(){ running = false; cancelAnimationFrame(raf); },
+      /* 反转：台面上剩下的娃娃全部变成爱心 */
+      revealHearts(){ loveMode = true; draw(); }
+    };
+  })();
+
+  /* ─────────────────────────────────────────────
      关卡调度
      ───────────────────────────────────────────── */
   const STAGES = [
     { pane: 'catch',  api: CatchStage,  name: '接住掉下来的东西',
       aLabel: '★', bLabel: '⏱', bUnit: 's',
+      result: '接星星', unit: ' 分',
       tip: '移动鼠标 / 手指，或按 ← → 键控制篮子。<br>接住 <b>★</b> 得 1 分、<b>◆</b> 得 3 分，躲开 <b>炸弹</b>。' },
     { pane: 'mole',   api: MoleStage,   name: '打地鼠',
       aLabel: '🐹', bLabel: '⏱', bUnit: 's',
+      result: '打地鼠', unit: ' 只',
       tip: '地鼠冒头的瞬间点它。<br>点中一只得 1 分。' },
     { pane: 'memory', api: MemoryStage, name: '翻牌配对',
       aLabel: '配对', bLabel: '⏱', bUnit: 's',
-      tip: '翻开两张一样的牌就能消掉。<br>全部配完就通关。' }
+      result: '翻　牌', unit: ' 对',
+      tip: '翻开两张一样的牌就能消掉。<br>全部配完就通关。' },
+    { pane: 'claw',   api: ClawStage,   name: '抓娃娃',
+      aLabel: '抓到', bLabel: '⏱', bUnit: 's',
+      result: '抓娃娃', unit: ' 只',
+      tip: '点一下，爪子就会下去。<br>抓几只上来吧。' }
   ];
   const TOTAL = STAGES.length;
 
@@ -1640,8 +2049,9 @@ const Games = (() => {
   }
 
   /* 每关结束（达成目标 或 时间到）都会走到这里，不会卡住 */
-  function onStageEnd(){
+  function onStageEnd(score){
     STAGES[index].api.stop();
+    if (score !== undefined) stageScores[index] = score;   // 各关成绩，结算界面要用
     if (index < TOTAL - 1){
       showMask('第 ' + (index + 1) + ' 关 完成 ✓', '继续下一关…', null);
       setTimeout(() => showStage(index + 1), 1050);
@@ -1651,7 +2061,7 @@ const Games = (() => {
   }
 
   /* ─────────────────────────────────────────────
-     三关全部通过 → 「恭喜通关」结算画面
+     四关全部通过 → 「恭喜通关」结算画面
      ─────────────────────────────────────────────
      这一步是刻意的：先给她一个再正常不过的游戏通关结算，
      让她彻底放松下来、以为事情就到此为止了。
@@ -1673,16 +2083,16 @@ const Games = (() => {
       if (++n > 20){ clearInterval(confettiTimer); confettiTimer = null; }
     }, 430);
 
-    const sc = (i, unit) => {
+    const sc = (st, i) => {
       const v = stageScores[i];
-      return '<span class="vRow"><i>' + ['接星星','打地鼠','翻　牌'][i] + '</i><b>' +
-             (v === undefined ? '—' : v) + '</b>' + unit + '</span>';
+      return '<span class="vRow"><i>' + st.result + '</i><b>' +
+             (v === undefined ? '—' : v) + '</b>' + st.unit + '</span>';
     };
 
     showMask(
       '🎉 恭喜通关！',
-      '<span class="vSub">三 关 全 部 通 过</span>' +
-      sc(0, ' 分') + sc(1, ' 只') + sc(2, ' 对'),
+      '<span class="vSub">全 部 ' + TOTAL + ' 关 通 过</span>' +
+      STAGES.map(sc).join(''),
       '领取奖励 →'
     );
     mask.classList.add('victory');
@@ -1701,10 +2111,13 @@ const Games = (() => {
     // 先让"游戏"再停留一下下——她还以为这是个游戏，
     // 然后下一帧整个桌面翻成爱心。这一拍是整个惊喜的支点。
     setTimeout(() => {
-      // 1. 桌上所有的牌一起变成爱心
+      // 1. 桌上所有的牌一起变成爱心（她如果回头玩一遍也能看到）
       MemoryStage.revealHearts();
 
-      // 1b. 背景上飘着的小星星也全部变成爱心（整片画面的气质一起翻过来）
+      // 1b. 台面上剩下的娃娃也一起变成爱心
+      ClawStage.revealHearts();
+
+      // 1c. 背景上飘着的小星星也全部变成爱心（整片画面的气质一起翻过来）
       ambientToHearts();
 
       // 2. 满屏粉光闪一下
@@ -1755,7 +2168,7 @@ const Games = (() => {
     begin: begin,
     /* 重新玩一遍 */
     restart(){
-      CatchStage.stop(); MoleStage.stop(); MemoryStage.stop();
+      CatchStage.stop(); MoleStage.stop(); MemoryStage.stop(); ClawStage.stop();
       stopCelebration();
       index = -1;
       phase = 'play';
