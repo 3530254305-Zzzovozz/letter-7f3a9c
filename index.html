@@ -303,6 +303,30 @@
   .gameMask.show{ opacity:1; visibility:visible; }
   .gameMask h3{ font-size:19px; font-weight:700; color:#ffd6e8; }
   .gameMask p{ font-size:13.5px; line-height:1.9; color:rgba(255,214,232,.72); max-width:300px; }
+
+  /* ───────── 恭喜通关（中性游戏结算，不能有一点粉色爱心）───────── */
+  .gameMask.victory h3{
+    font-size:28px; letter-spacing:1px;
+    background:linear-gradient(135deg,#fff6cf,#ffc857 52%,#ffa62e);
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:#ffc857;
+    animation:vPop .55s cubic-bezier(.2,1.5,.4,1) both;
+  }
+  @keyframes vPop{ from{ transform:scale(.6); opacity:0 } to{ transform:scale(1); opacity:1 } }
+  .gameMask.victory p{ max-width:212px; }
+  .gameMask .vRow{
+    display:flex; justify-content:space-between; align-items:baseline;
+    gap:20px; padding:2px 0; font-size:14px; line-height:1.75;
+  }
+  .gameMask .vRow i{ font-style:normal; color:rgba(255,214,232,.55); }
+  .gameMask .vRow b{
+    color:#ffd76e; font-weight:700; font-size:16px;
+    font-variant-numeric:tabular-nums;
+  }
+  .gameMask .vSub{
+    display:block; font-size:12.5px; letter-spacing:2px;
+    color:rgba(255,214,232,.5); margin-bottom:6px;
+  }
   .gameTip{ margin-top:12px; font-size:12.5px; color:rgba(255,214,232,.45); line-height:1.8; }
 
   /* ───────── 音乐按钮 ───────── */
@@ -544,8 +568,35 @@ function heart(c, x, y, s, rot, color, alpha){
   c.restore();
 }
 
+/* 画一个四角星（游戏阶段用的中性粒子） */
+function sparkle(c, x, y, s, rot, color, alpha){
+  c.save();
+  c.translate(x, y);
+  c.rotate(rot || 0);
+  c.globalAlpha = alpha === undefined ? 1 : alpha;
+  c.fillStyle = color;
+  c.beginPath();
+  c.moveTo(0, -s);
+  c.quadraticCurveTo(0, 0, s, 0);
+  c.quadraticCurveTo(0, 0, 0, s);
+  c.quadraticCurveTo(0, 0, -s, 0);
+  c.quadraticCurveTo(0, 0, 0, -s);
+  c.fill();
+  c.restore();
+}
+
+/* ── 背景往上飘的粒子 ──
+   反转之前飘的是中性小星星（白 / 浅蓝 / 淡金 / 淡绿 / 淡紫），
+   绝对不能用粉色爱心——否则整个游戏过程中背景都在暗示「这是表白」，
+   等她玩到第三关，惊喜早就泄光了。
+   反转的那一刻整片背景会一起变成爱心，落差才够大。 */
+const AMBIENT_GAME_PAL = ['#ffffff','#cfe4ff','#ffe9a8','#a8f0c0','#d9c9ff'];
+const AMBIENT_LOVE_PAL = ['#ff6b9d','#ffa8c5'];
+let loveAmbient = false;          // 反转时置为 true
+
 function spawnAmbient(){
   if (ambient.length > 34) return;
+  const pal = loveAmbient ? AMBIENT_LOVE_PAL : AMBIENT_GAME_PAL;
   ambient.push({
     x: Math.random() * W,
     y: H + 30,
@@ -554,11 +605,29 @@ function spawnAmbient(){
     drift: (Math.random() - .5) * .35,
     rot: (Math.random() - .5) * .5,
     a: Math.random() * .3 + .12,
-    hue: Math.random() < .5 ? '#ff6b9d' : '#ffa8c5'
+    kind: loveAmbient ? 'heart' : 'star',
+    hue: pal[(Math.random() * pal.length) | 0]
   });
 }
 
-function burst(x, y, count){
+/* 反转：场上所有小星星立刻变成爱心，之后新冒出来的也是爱心 */
+function ambientToHearts(){
+  loveAmbient = true;
+  for (const p of ambient){
+    p.kind = 'heart';
+    p.hue = AMBIENT_LOVE_PAL[(Math.random() * 2) | 0];
+  }
+}
+
+/* 粉色爱心调色板（反转时用） */
+const PINK_PAL = ['#ff6b9d','#ffa8c5','#ffd6e8','#ff2d6f','#fff0f6','#ffc857'];
+/* 中性游戏彩带调色板（恭喜通关时用）——只有金白青绿，
+   一个粉色都没有。这一关必须让画面看起来「就是个游戏」，
+   惊喜要留到她自己点「领取奖励」的那一刻。 */
+const GAME_PAL = ['#ffd700','#ffffff','#7ee8fa','#ffe066','#a8f0c0','#c9d6ff','#ffb03a'];
+
+function burst(x, y, count, palette, onlyType){
+  const pal = palette || PINK_PAL;
   for (let i = 0; i < count; i++){
     const ang = Math.random() * Math.PI * 2;
     const sp  = Math.random() * 7 + 2.5;
@@ -571,8 +640,8 @@ function burst(x, y, count){
       vr: (Math.random() - .5) * .22,
       life: 1,
       decay: Math.random() * .010 + .007,
-      type: Math.random() < .55 ? 'heart' : 'confetti',
-      hue: ['#ff6b9d','#ffa8c5','#ffd6e8','#ff2d6f','#fff0f6','#ffc857'][(Math.random()*6)|0]
+      type: onlyType || (Math.random() < .55 ? 'heart' : 'confetti'),
+      hue: pal[(Math.random() * pal.length) | 0]
     });
   }
 }
@@ -599,7 +668,8 @@ function loop(){
     const p = ambient[i];
     p.y -= p.v;
     p.x += Math.sin(t * .012 + p.y * .01) * .3 + p.drift * .2;
-    heart(ctx, p.x, p.y, p.s, p.rot, p.hue, p.a);
+    if (p.kind === 'heart') heart(ctx, p.x, p.y, p.s, p.rot, p.hue, p.a);
+    else                    sparkle(ctx, p.x, p.y, p.s * .62, p.rot, p.hue, p.a);
     if (p.y < -40) ambient.splice(i, 1);
   }
   ctx.globalAlpha = 1;
@@ -1059,6 +1129,9 @@ const Games = (() => {
 
   let index = -1;             // 当前第几关（0 起）
   let musicStarted = false;   // 音乐只在第一次点击时启动
+  let phase = 'play';         // 'play' = 正在闯关，"victory" = 通关结算中
+  const stageScores = [];     // 每关的最终成绩，通关结算时展示
+  let confettiTimer = null;   // 通关彩带的循环计时器
 
   /* ── 通用界面 ── */
   function showMask(title, html, btn){
@@ -1078,6 +1151,9 @@ const Games = (() => {
     hudStage.textContent = '第 ' + no + ' / ' + total + ' 关';
     hudScore.textContent = scoreText;
     hudTime.textContent  = timeText;
+    // 顺手记下每关的最终成绩（形如 "12 / 15"），结算界面要用
+    const m = /^(\d+)/.exec(scoreText);
+    if (m) stageScores[no - 1] = +m[1];
   }
 
   /* ─────────────────────────────────────────────
@@ -1570,26 +1646,79 @@ const Games = (() => {
       showMask('第 ' + (index + 1) + ' 关 完成 ✓', '继续下一关…', null);
       setTimeout(() => showStage(index + 1), 1050);
     } else {
-      reveal();
+      victory();
     }
   }
 
-  /* ── 反转：三关全部结束，画面突然翻出表白 ── */
-  function reveal(){
-    // 1. 桌上所有的牌一起变成爱心
-    MemoryStage.revealHearts();
+  /* ─────────────────────────────────────────────
+     三关全部通过 → 「恭喜通关」结算画面
+     ─────────────────────────────────────────────
+     这一步是刻意的：先给她一个再正常不过的游戏通关结算，
+     让她彻底放松下来、以为事情就到此为止了。
+     画面里一个粉色爱心都没有，就是游戏该有的金色彩带。
+     真正的转折留到她自己点「领取奖励」的那一刻。 */
+  function victory(){
+    phase = 'victory';
 
-    // 2. 满屏粉光闪一下
-    flash.classList.remove('on');
-    void flash.offsetWidth;      // 强制重排，让动画能重复播放
-    flash.classList.add('on');
-
-    // 3. 背景连放几波爱心
-    for (let i = 0; i < 4; i++){
+    // 撒一波中性彩带（只有金白青绿，全部是纸片，没有爱心）
+    for (let i = 0; i < 5; i++){
       setTimeout(() => {
-        burst(W * (.2 + Math.random() * .6), H * (.2 + Math.random() * .42), 60);
-      }, 260 + i * 210);
+        burst(W * (.12 + Math.random() * .76), H * (.14 + Math.random() * .38), 46, GAME_PAL, 'confetti');
+      }, i * 180);
     }
+    // 之后继续零星撒，保持热闹
+    let n = 0;
+    confettiTimer = setInterval(() => {
+      burst(W * (.08 + Math.random() * .84), H * (.1 + Math.random() * .34), 24, GAME_PAL, 'confetti');
+      if (++n > 20){ clearInterval(confettiTimer); confettiTimer = null; }
+    }, 430);
+
+    const sc = (i, unit) => {
+      const v = stageScores[i];
+      return '<span class="vRow"><i>' + ['接星星','打地鼠','翻　牌'][i] + '</i><b>' +
+             (v === undefined ? '—' : v) + '</b>' + unit + '</span>';
+    };
+
+    showMask(
+      '🎉 恭喜通关！',
+      '<span class="vSub">三 关 全 部 通 过</span>' +
+      sc(0, ' 分') + sc(1, ' 只') + sc(2, ' 对'),
+      '领取奖励 →'
+    );
+    mask.classList.add('victory');
+  }
+
+  function stopCelebration(){
+    if (confettiTimer){ clearInterval(confettiTimer); confettiTimer = null; }
+  }
+
+  /* ── 反转：她自己点下「领取奖励」之后，才翻出表白 ── */
+  function reveal(){
+    stopCelebration();
+    mask.classList.remove('victory');
+    hideMask();
+
+    // 先让"游戏"再停留一下下——她还以为这是个游戏，
+    // 然后下一帧整个桌面翻成爱心。这一拍是整个惊喜的支点。
+    setTimeout(() => {
+      // 1. 桌上所有的牌一起变成爱心
+      MemoryStage.revealHearts();
+
+      // 1b. 背景上飘着的小星星也全部变成爱心（整片画面的气质一起翻过来）
+      ambientToHearts();
+
+      // 2. 满屏粉光闪一下
+      flash.classList.remove('on');
+      void flash.offsetWidth;      // 强制重排，让动画能重复播放
+      flash.classList.add('on');
+
+      // 3. 背景连放几波爱心（这次才是粉色的）
+      for (let i = 0; i < 5; i++){
+        setTimeout(() => {
+          burst(W * (.15 + Math.random() * .7), H * (.18 + Math.random() * .44), 62);
+        }, 220 + i * 190);
+      }
+    }, 260);
 
     // 4. 进入情书
     setTimeout(() => {
@@ -1599,16 +1728,21 @@ const Games = (() => {
       try { document.title = '给你的一封信 💌'; } catch (e){}
       go('sceneLetter');
       playLetter();
-    }, 1800);
+    }, 2100);
   }
 
-  /* 第一次点击「开始」：用户手势，正好用来启动音乐 */
+  /* 按钮：闯关时是「开始 / 下一关」，通关结算时是「领取奖励」 */
   maskBtn.addEventListener('click', () => {
     if (!musicStarted){
       musicStarted = true;
       startMusic();
     }
-    beginStage();
+    if (phase === 'victory'){
+      phase = 'play';
+      reveal();
+    } else {
+      beginStage();
+    }
   });
 
   /* 页面入口 */
@@ -1622,7 +1756,14 @@ const Games = (() => {
     /* 重新玩一遍 */
     restart(){
       CatchStage.stop(); MoleStage.stop(); MemoryStage.stop();
+      stopCelebration();
       index = -1;
+      phase = 'play';
+      stageScores.length = 0;
+      mask.classList.remove('victory');
+      // 背景粒子也回到中性状态，重新玩一遍时惊喜依然有效
+      loveAmbient = false;
+      ambient.length = 0;
       musicStarted = true;      // 音乐已经在放了，不用再启动一次
       begin();
     }
