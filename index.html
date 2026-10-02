@@ -6,6 +6,36 @@
 <meta name="theme-color" content="#1a0b2e">
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
 <title>给你的一封信 💌</title>
+<script>
+/* 兜底诊断：脚本一旦报错就在页面底部显示出来，方便截图反馈。
+   这里刻意用最老的 ES5 语法写，保证在旧浏览器里也能正常显示。
+   一切正常时它永远不会出现。 */
+(function () {
+  function show(msg) {
+    try {
+      var bar = document.getElementById('__errbar');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = '__errbar';
+        bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483647;'
+          + 'background:rgba(58,13,28,.97);color:#ffd6e8;'
+          + 'font:11px/1.6 Consolas,monospace;padding:9px 12px;'
+          + 'word-break:break-all;border-top:1px solid #ff6b9d';
+        var host = document.body || document.documentElement;
+        host.appendChild(bar);
+      }
+      bar.innerHTML += (bar.innerHTML ? '<br>' : '') + '⚠ ' + msg;
+    } catch (e) {}
+  }
+  window.onerror = function (msg, url, line, col) {
+    show(msg + '  @' + line + ':' + col);
+    return false;
+  };
+  window.addEventListener('unhandledrejection', function (e) {
+    show('异步错误: ' + ((e.reason && e.reason.message) || e.reason));
+  });
+})();
+</script>
 <!--
   ════════════════════════════════════════════════
    表白网页 · 使用说明
@@ -509,10 +539,15 @@ const Music = (() => {
   let actx = null, master = null, timer = null, on = false, step = 0;
   let mode = 'none';                 // 'none' | 'file' | 'synth'
 
-  // 页面一打开就开始预加载歌曲，这样点「开始」时能立刻响
-  if (fileEl && CONFIG.bgmFile){
-    fileEl.src = CONFIG.bgmFile;
-    fileEl.load();
+  // 页面一打开就开始预加载歌曲，这样点「开始」时能立刻响。
+  // 用 try 包住：万一预加载出问题，也不能连累后面的游戏和场景逻辑
+  try {
+    if (fileEl && CONFIG.bgmFile){
+      fileEl.src = CONFIG.bgmFile;
+      fileEl.load();
+    }
+  } catch (err){
+    console.warn('背景音乐预加载失败（不影响页面）:', err);
   }
 
   /* ───────── 内置音乐：怀旧木吉他 ─────────
@@ -812,10 +847,18 @@ const Music = (() => {
 })();
 
 const musicBtn = document.getElementById('musicBtn');
-musicBtn.addEventListener('click', async () => {
-  const playing = await Music.toggle();
-  musicBtn.textContent = playing ? '🎵' : '🔇';
-  musicBtn.classList.toggle('paused', !playing);
+musicBtn.addEventListener('click', () => {
+  try {
+    const p = Music.toggle();
+    if (p && typeof p.then === 'function'){
+      p.then((playing) => {
+        musicBtn.textContent = playing ? '🎵' : '🔇';
+        musicBtn.classList.toggle('paused', !playing);
+      }).catch((err) => console.warn('音乐切换失败:', err));
+    }
+  } catch (err){
+    console.warn('音乐切换异常:', err);
+  }
 });
 
 /* ══════════════ 场景切换 ══════════════ */
@@ -1173,14 +1216,21 @@ async function playLetter(){
 }
 
 openBtn.addEventListener('click', () => {
-  // 首次点击：用户手势，正好用来启动音乐。
-  // 这里不同步等待音乐（歌曲没加载好时可能要等几秒），
-  // 但要在这个点击里同步发起播放请求，否则浏览器会拒绝播放。
-  Music.start().then((playing) => {
-    musicBtn.textContent = playing ? '🎵' : '🔇';
-    musicBtn.classList.toggle('paused', !playing);
-  });
+  // 先无条件推进流程：不管音乐出什么问题，这个按钮都必须有反应
   Game.begin();
+
+  // 再尝试启动音乐。必须在这个点击的手势里同步发起，否则浏览器会拒绝播放
+  try {
+    const p = Music.start();
+    if (p && typeof p.then === 'function'){
+      p.then((playing) => {
+        musicBtn.textContent = playing ? '🎵' : '🔇';
+        musicBtn.classList.toggle('paused', !playing);
+      }).catch((err) => { console.warn('音乐启动失败（不影响页面）:', err); });
+    }
+  } catch (err){
+    console.warn('音乐启动异常（不影响页面）:', err);
+  }
 });
 
 toAskBtn.addEventListener('click', () => {
