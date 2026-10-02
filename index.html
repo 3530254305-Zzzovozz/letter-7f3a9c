@@ -219,6 +219,10 @@
 
 <canvas id="bg"></canvas>
 <div class="vignette"></div>
+
+<!-- 背景音乐文件：把歌放到同目录命名 bgm.mp3 即可自动启用；没有该文件会自动回退到内置音乐 -->
+<audio id="bgm" loop preload="auto" playsinline></audio>
+
 <button id="musicBtn" class="paused" title="播放/暂停音乐">🔇</button>
 
 <!-- ══════════ 场景 1：开场 ══════════ -->
@@ -323,6 +327,12 @@ const CONFIG = {
     '求你了…',
     '这个按钮坏掉了 😢',
   ],
+
+  // ── 背景音乐 ──
+  // 把歌曲文件放到和 index.html 同一个文件夹，命名 bgm.mp3，就会自动播放这首歌。
+  // 如果找不到这个文件，会自动回退到内置的合成轻音乐（所以删掉这行也不会没声音）。
+  bgmFile:   'bgm.mp3',   // 也可以换成 '我们俩.mp3' 等任意文件名；填 '' 表示只用内置音乐
+  bgmVolume: 0.6,         // 歌曲音量 0~1
 
   // ── 小游戏难度（想让对方轻松过关就调低一点）──
   gameGoal:  12,   // 需要接住多少颗爱心才过关
@@ -489,10 +499,23 @@ function loop(){
 resize();
 loop();
 
-/* ══════════════ 背景音乐（Web Audio 实时合成，无需音频文件） ══════════════ */
+/* ══════════════ 背景音乐 ══════════════
+   优先播放同目录的 CONFIG.bgmFile（例如 bgm.mp3）；
+   文件不存在或加载失败时，自动回退到 Web Audio 实时合成的轻音乐。
+   音乐按钮对两者都生效。
+*/
 const Music = (() => {
+  const fileEl = document.getElementById('bgm');
   let actx = null, master = null, timer = null, on = false, step = 0;
+  let mode = 'none';                 // 'none' | 'file' | 'synth'
 
+  // 页面一打开就开始预加载歌曲，这样点「开始」时能立刻响
+  if (fileEl && CONFIG.bgmFile){
+    fileEl.src = CONFIG.bgmFile;
+    fileEl.load();
+  }
+
+  /* ───────── 内置合成音乐 ───────── */
   const CHORDS = [
     [261.63, 329.63, 392.00], // C
     [220.00, 261.63, 329.63], // Am
@@ -521,14 +544,14 @@ const Music = (() => {
     const idx = PATTERN[step % 8];
     const now = actx.currentTime + 0.05;
 
-    note(chord[idx] * 2, now, 1.1, 0.075);            // 高音旋律
-    if (step % 8 === 0) note(chord[0] / 2, now, 2.4, 0.09); // 低音铺底
-    if (step % 4 === 2) note(chord[2] * 2, now, .9, 0.04);  // 装饰音
+    note(chord[idx] * 2, now, 1.1, 0.075);                   // 高音旋律
+    if (step % 8 === 0) note(chord[0] / 2, now, 2.4, 0.09);  // 低音铺底
+    if (step % 4 === 2) note(chord[2] * 2, now, .9, 0.04);   // 装饰音
 
     step++;
   }
 
-  function start(){
+  function synthStart(){
     try{
       if (!actx){
         const AC = window.AudioContext || window.webkitAudioContext;
@@ -552,33 +575,128 @@ const Music = (() => {
       master.gain.setValueAtTime(master.gain.value, actx.currentTime);
       master.gain.linearRampToValueAtTime(0.9, actx.currentTime + 1.5);
       if (!timer) timer = setInterval(tick, 300);
-      on = true;
       return true;
     } catch (err){
-      console.warn('音乐启动失败（不影响使用）:', err);
+      console.warn('内置音乐启动失败（不影响使用）:', err);
       return false;
     }
   }
 
-  function stop(){
+  function synthStop(){
     if (!actx) return;
     master.gain.cancelScheduledValues(actx.currentTime);
     master.gain.setValueAtTime(master.gain.value, actx.currentTime);
     master.gain.linearRampToValueAtTime(0.0, actx.currentTime + 0.5);
     clearInterval(timer); timer = null;
+  }
+
+  /* ───────── 外部歌曲文件 ───────── */
+  function fadeTo(el, target, ms){
+    const from = el.volume, t0 = performance.now();
+    (function run(){
+      const k = Math.min(1, (performance.now() - t0) / ms);
+      el.volume = Math.max(0, Math.min(1, from + (target - from) * k));
+      if (k < 1) requestAnimationFrame(run);
+    })();
+  }
+
+  function playFile(){
+    return new Promise((resolve) => {
+      if (!fileEl || !CONFIG.bgmFile) return resolve(false);
+
+      let settled = false;
+      const finish = (ok) => { if (!settled){ settled = true; resolve(ok); } };
+
+      const onReady = () => {
+        if (settled) return;
+        fileEl.volume = 0;
+        const p = fileEl.play();
+        if (p && typeof p.then === 'function'){
+          p.then(() => { fadeTo(fileEl, CONFIG.bgmVolume, 1600); finish(true); })
+           .catch(() => finish(false));
+        } else {
+          fadeTo(fileEl, CONFIG.bgmVolume, 1600);
+          finish(true);
+        }
+      };
+
+      fileEl.addEventListener('error', () => finish(false), { once: true });
+      fileEl.addEventListener('canplaythrough', onReady, { once: true });
+
+      if (fileEl.readyState >= 3) onReady();          // 已经加载好了
+      else if (fileEl.readyState === 0) fileEl.load(); // 还没开始加载
+
+      setTimeout(() => finish(false), 5000);           // 5 秒还不行就先用内置音乐
+    });
+  }
+
+  function fallbackToSynth(){
+    mode = 'synth';
+    on = synthStart();
+    console.log(on ? '♪ 背景音乐：未找到歌曲文件，使用内置合成音乐'
+                  : '♪ 背景音乐：播放失败（不影响页面使用）');
+    return on;
+  }
+
+  function useFile(){
+    mode = 'file';
+    on = true;
+    console.log('♪ 背景音乐：正在播放 ' + CONFIG.bgmFile);
+    return true;
+  }
+
+  /* 注意：start() 会在点击事件里被同步调用。
+     「歌曲已预加载完成」这条分支必须在任何 await 之前执行完，
+     否则会脱离浏览器的用户手势窗口，iOS / 微信里就会播放失败。 */
+  function start(){
+    if (on) return Promise.resolve(true);
+
+    // 之前已经在用歌曲：直接继续放
+    if (mode === 'file'){
+      fileEl.volume = CONFIG.bgmVolume;
+      const p = fileEl.play();
+      return (p && typeof p.then === 'function')
+        ? p.then(() => { on = true; return true; }).catch(() => false)
+        : Promise.resolve(true);
+    }
+    if (mode === 'synth'){ on = synthStart(); return Promise.resolve(on); }
+
+    // 首次播放：歌曲已经预加载好了 → 立刻同步播放
+    if (CONFIG.bgmFile && fileEl && fileEl.readyState >= 3){
+      fileEl.volume = 0;
+      const p = fileEl.play();
+      if (p && typeof p.then === 'function'){
+        return p.then(() => { fadeTo(fileEl, CONFIG.bgmVolume, 1600); return useFile(); })
+                .catch(() => fallbackToSynth());
+      }
+      fadeTo(fileEl, CONFIG.bgmVolume, 1600);
+      return Promise.resolve(useFile());
+    }
+
+    // 歌曲还没加载好（或没配置）→ 异步等它，等不到就用内置音乐
+    return playFile().then(ok => ok ? useFile() : fallbackToSynth());
+  }
+
+  function stop(){
+    if (mode === 'file' && fileEl){
+      fadeTo(fileEl, 0, 400);
+      setTimeout(() => { try { fileEl.pause(); } catch (e){} }, 430);
+    }
+    if (mode === 'synth') synthStop();
     on = false;
   }
 
   return {
-    toggle(){ return on ? (stop(), false) : (start(), true); },
+    async toggle(){ if (on){ stop(); return false; } return await start(); },
     start(){ return start(); },
-    isOn(){ return on; }
+    isOn(){ return on; },
+    mode(){ return mode; }
   };
 })();
 
 const musicBtn = document.getElementById('musicBtn');
-musicBtn.addEventListener('click', () => {
-  const playing = Music.toggle();
+musicBtn.addEventListener('click', async () => {
+  const playing = await Music.toggle();
   musicBtn.textContent = playing ? '🎵' : '🔇';
   musicBtn.classList.toggle('paused', !playing);
 });
@@ -937,13 +1055,14 @@ async function playLetter(){
   toAskBtn.style.display = 'inline-flex';
 }
 
-openBtn.addEventListener('click', async () => {
-  // 首次点击：用户手势，正好用来启动音乐
-  if (Music.start()){
-    musicBtn.textContent = '🎵';
-    musicBtn.classList.remove('paused');
-  }
-  await wait(350);
+openBtn.addEventListener('click', () => {
+  // 首次点击：用户手势，正好用来启动音乐。
+  // 这里不同步等待音乐（歌曲没加载好时可能要等几秒），
+  // 但要在这个点击里同步发起播放请求，否则浏览器会拒绝播放。
+  Music.start().then((playing) => {
+    musicBtn.textContent = playing ? '🎵' : '🔇';
+    musicBtn.classList.toggle('paused', !playing);
+  });
   Game.begin();
 });
 
