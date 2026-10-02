@@ -41,7 +41,7 @@
    表白网页 · 使用说明
    1. 用记事本 / VS Code 打开本文件
    2. 找到下面的 CONFIG（大约在第 40 行）
-      改掉 to / from / introLines / question 等内容
+      改掉 to / from / letterLines / question / games 等内容
    3. 保存后双击打开即可（推荐 Chrome / Edge / Safari）
    4. 想加背景音乐：把 mp3 放在同目录，命名 bgm.mp3
   ════════════════════════════════════════════════
@@ -198,21 +198,98 @@
   }
   .hudItem{ display:flex; align-items:center; gap:5px; }
   .hudItem b{ color:#ff9dc0; font-size:15px; }
-  #lifeRow{ letter-spacing:2px; font-size:15px; }
 
   #gameWrap{
     position:relative; border-radius:18px; overflow:hidden;
     border:1px solid rgba(255,182,213,.22);
     background: radial-gradient(100% 80% at 50% 0%, rgba(255,107,157,.10), rgba(255,255,255,.015));
   }
+  /* 三个关卡共用一个舞台，一次只显示一个 */
+  .stagePane{
+    position:relative; width:100%; height:min(46vh, 330px); min-height:220px;
+    display:none;
+  }
+  .stagePane.on{ display:block; }
   #gameCanvas{
-    display:block; width:100%; height:min(46vh, 330px); min-height:220px;
+    display:block; width:100%; height:100%;
     touch-action:none; cursor:none;
   }
+
+  /* ── 第 2 关：打地鼠 ── */
+  #moleStage{ padding:14px; box-sizing:border-box; }
+  .moleGrid{
+    display:grid; grid-template-columns:repeat(3, 1fr);
+    grid-template-rows:repeat(3, 1fr); gap:10px; width:100%; height:100%;
+  }
+  .hole{
+    position:relative; border-radius:15px; overflow:hidden; cursor:pointer;
+    touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent;
+    border:1px solid rgba(255,255,255,.09);
+    background: radial-gradient(circle at 50% 86%, rgba(0,0,0,.55) 0 32%, rgba(255,255,255,.055) 34%, rgba(255,255,255,.025) 100%);
+    display:flex; align-items:flex-end; justify-content:center;
+    transition:background .15s;
+  }
+  .hole.hit{ background: radial-gradient(circle at 50% 86%, rgba(120,255,190,.30) 0 34%, rgba(255,255,255,.06) 36%, rgba(255,255,255,.02) 100%); }
+  .mole{
+    font-size:31px; line-height:1; pointer-events:none;
+    transform:translateY(118%);
+    transition:transform .13s cubic-bezier(.2, 1.7, .5, 1);
+  }
+  .hole.up .mole{ transform:translateY(8%); }
+
+  /* ── 第 3 关：翻牌配对 ── */
+  #memStage{ padding:16px; box-sizing:border-box; }
+  #memStage.on{ display:flex; align-items:center; justify-content:center; }
+  .memGrid{
+    display:grid; grid-template-columns:repeat(4, 1fr); gap:9px;
+    width:100%; max-width:320px; align-content:center;
+  }
+  /* 卡片必须有真实高度：靠宽高比撑开，否则百分比高度会塌成 0 */
+  .card3d{ aspect-ratio:3 / 4; perspective:620px; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+  .cardInner{
+    position:relative; width:100%; height:100%;
+    transform-style:preserve-3d;
+    transition:transform .42s cubic-bezier(.4, 1.25, .5, 1);
+  }
+  .card3d.flip .cardInner{ transform:rotateY(180deg); }
+  .cardFace{
+    position:absolute; inset:0; border-radius:11px;
+    display:flex; align-items:center; justify-content:center;
+    backface-visibility:hidden; -webkit-backface-visibility:hidden;
+    font-size:25px; line-height:1;
+  }
+  .cardBack{
+    background:linear-gradient(150deg, rgba(124,94,196,.55), rgba(58,38,108,.8));
+    border:1px solid rgba(255,255,255,.17); color:rgba(255,255,255,.3); font-size:17px;
+  }
+  .cardFront{
+    transform:rotateY(180deg); color:#ffe3ef;
+    background:linear-gradient(150deg, rgba(255,255,255,.17), rgba(255,255,255,.06));
+    border:1px solid rgba(255,182,213,.3);
+  }
+  .card3d.matched{ animation:cardPop .34s ease; }
+  .card3d.matched .cardFront{ border-color:rgba(120,255,190,.55); }
+  @keyframes cardPop{ 0%{transform:scale(1)} 45%{transform:scale(1.13)} 100%{transform:scale(1)} }
+  /* 反转瞬间：所有牌一起变成爱心 */
+  .card3d.reveal .cardFront{
+    color:#ff4f8b; border-color:rgba(255,79,139,.8);
+    text-shadow:0 0 16px rgba(255,79,139,.95);
+    background:linear-gradient(150deg, rgba(255,79,139,.34), rgba(255,79,139,.12));
+    transition:color .5s, border-color .5s, background .5s;
+  }
+
+  /* ── 反转时的满屏粉光 ── */
+  #glitchFlash{
+    position:fixed; inset:0; z-index:80; pointer-events:none; opacity:0;
+    background:radial-gradient(circle at 50% 46%, rgba(255,79,139,.62), rgba(255,79,139,0) 68%);
+  }
+  #glitchFlash.on{ animation:glitchFlash 1.5s ease forwards; }
+  @keyframes glitchFlash{ 0%{opacity:0} 16%{opacity:1} 100%{opacity:0} }
+
   .gameMask{
-    position:absolute; inset:0; display:flex; flex-direction:column;
+    position:absolute; inset:0; z-index:5; display:flex; flex-direction:column;
     align-items:center; justify-content:center; gap:14px; padding:20px;
-    text-align:center; background:rgba(16,7,30,.72);
+    text-align:center; background:rgba(16,7,30,.78);
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
     opacity:0; visibility:hidden; transition:opacity .35s, visibility .35s;
   }
@@ -255,35 +332,28 @@
 
 <button id="musicBtn" class="paused" title="播放/暂停音乐">🔇</button>
 
-<!-- ══════════ 场景 1：开场 ══════════ -->
-<section class="scene active" id="sceneIntro">
-  <div class="card">
-    <div class="envelope">💌</div>
-    <h1 id="introTitle">有一封信，只写给你</h1>
-    <p class="sub">先玩一个小游戏，才能拆开这封信 🎮<br>BGM 会在这时候响起，记得开声音 🎧</p>
-    <button class="btn" id="openBtn">开始</button>
-  </div>
-</section>
-
-<!-- ══════════ 场景 2：小游戏 ══════════ -->
-<section class="scene" id="sceneGame">
+<!-- ══════════ 场景 1：小游戏（三关，页面入口） ══════════ -->
+<section class="scene active" id="sceneGame">
   <div class="card">
     <div class="gameHud">
-      <div class="hudItem">🧺 已接住 <b id="hudScore">0</b> / <b id="hudGoal">12</b></div>
-      <div class="hudItem" id="lifeRow">❤❤❤</div>
-      <div class="hudItem">⏱ <b id="hudTime">30</b>s</div>
+      <div class="hudItem" id="hudStage">小游戏</div>
+      <div class="hudItem"><span id="hudALabel">★</span> <b id="hudScore">0</b></div>
+      <div class="hudItem"><span id="hudBLabel">⏱</span> <b id="hudTime">0</b><span id="hudBUnit">s</span></div>
     </div>
 
     <div id="gameWrap">
-      <canvas id="gameCanvas"></canvas>
+      <div class="stagePane on" id="catchStage"><canvas id="gameCanvas"></canvas></div>
+      <div class="stagePane" id="moleStage"><div class="moleGrid" id="moleGrid"></div></div>
+      <div class="stagePane" id="memStage"><div class="memGrid" id="memGrid"></div></div>
+
       <div class="gameMask show" id="gameMask">
-        <h3 id="maskTitle">帮我接住这些心 🧺</h3>
-        <p id="maskText">移动鼠标 / 手指，或按 ← → 键来移动篮子。<br>接住 <b>爱心</b> 得分，别接 <b>碎裂的心</b> 哦。</p>
+        <h3 id="maskTitle">小游戏</h3>
+        <p id="maskText">一共三关，每关玩法都不一样。<br>准备好了就点开始吧。</p>
         <button class="btn" id="maskBtn">开始</button>
       </div>
     </div>
 
-    <p class="gameTip">接满 <span id="tipGoal">12</span> 颗心，就解锁后面的信 ✉️</p>
+    <p class="gameTip" id="gameTip">一共三关，每关玩法都不一样。</p>
   </div>
 </section>
 
@@ -322,6 +392,7 @@
   </div>
 </section>
 
+<div id="glitchFlash"></div>
 <div class="hint">Made with ❤️</div>
 
 <script>
@@ -333,11 +404,8 @@ const CONFIG = {
   to:   '小可爱',
   from: '我',
 
-  // 开场标题
-  introTitle: '有一封信，只写给你',
-
   // 情书内容（一段一行，会逐字打出来）
-  introLines: [
+  letterLines: [
     '嗨，{to}……',
     '有些话，我在心里排练过很多遍了。',
     '每次你笑起来的时候，我都觉得世界安静了一秒。',
@@ -364,10 +432,15 @@ const CONFIG = {
   bgmFile:   'bgm.mp3',   // 也可以换成 '我们俩.mp3' 等任意文件名；填 '' 表示只用内置音乐
   bgmVolume: 0.6,         // 歌曲音量 0~1
 
-  // ── 小游戏难度（想让对方轻松过关就调低一点）──
-  gameGoal:  12,   // 需要接住多少颗爱心才过关
-  gameTime:  30,   // 限时（秒）
-  gameLives: 3,    // 最多能接到几颗「碎裂的心」
+  // ── 小游戏：三个不同类型的关卡 ──
+  // 页面一打开就是小游戏，看起来就是个普通的休闲游戏。
+  // 每关限时，达成目标或时间到都会进入下一关（绝对不会卡住玩不下去）；
+  // 三关全部结束的那一刻，才会突然反转成表白。
+  games: {
+    catch:  { time: 26, goal: 15, bombs: true },  // 第 1 关：接住掉落的星星，避开炸弹
+    mole:   { time: 26, goal: 12 },               // 第 2 关：打地鼠
+    memory: { pairs: 4, time: 90 },               // 第 3 关：翻牌配对（配完触发反转）
+  },
 
   // 结局文案
   finalTitle: '我就知道 ❤️',
@@ -880,320 +953,625 @@ async function typeInto(el, text, speed){
   }
 }
 
-/* ══════════════ 小游戏：接住我的心 ══════════════ */
-const Game = (() => {
-  const cv   = document.getElementById('gameCanvas');
-  const g    = cv.getContext('2d');
+/* ══════════════ 小游戏：三个不同类型的关卡 ══════════════
+   页面一打开就是这里，看起来就是个普通的休闲小游戏。
+   三关全部玩完之后，才会突然反转成表白。 */
+const Games = (() => {
   const mask      = document.getElementById('gameMask');
   const maskTitle = document.getElementById('maskTitle');
   const maskText  = document.getElementById('maskText');
   const maskBtn   = document.getElementById('maskBtn');
+  const hudStage  = document.getElementById('hudStage');
   const hudScore  = document.getElementById('hudScore');
   const hudTime   = document.getElementById('hudTime');
-  const lifeRow   = document.getElementById('lifeRow');
-  const hudGoal   = document.getElementById('hudGoal');
-  const tipGoal   = document.getElementById('tipGoal');
+  const hudALabel = document.getElementById('hudALabel');
+  const hudBLabel = document.getElementById('hudBLabel');
+  const hudBUnit  = document.getElementById('hudBUnit');
+  const gameTip   = document.getElementById('gameTip');
+  const paneCatch = document.getElementById('catchStage');
+  const paneMole  = document.getElementById('moleStage');
+  const paneMem   = document.getElementById('memStage');
+  const flash     = document.getElementById('glitchFlash');
 
-  const GOAL = CONFIG.gameGoal, DURATION = CONFIG.gameTime, LIVES = CONFIG.gameLives, BASKET_TOP_OFFSET = 30;
+  let index = -1;             // 当前第几关（0 起）
+  let musicStarted = false;   // 音乐只在第一次点击时启动
 
-  let W = 0, H = 0, DPR = 1;
-  let items = [], sparks = [];
-  let basketX = 0, targetX = 0, basketW = 84;
-  let score = 0, lives = LIVES, timeLeft = DURATION;
-  let phase = 'idle';            // idle | playing | won | lost
-  let raf = null, last = 0, spawnTimer = 0, spawnGap = 760, clock = 0;
-  const keys = new Set();
-
-  hudGoal.textContent = GOAL;
-  tipGoal.textContent = GOAL;
-
-  function resize(){
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
-    W = cv.clientWidth; H = cv.clientHeight;
-    cv.width  = Math.max(1, Math.floor(W * DPR));
-    cv.height = Math.max(1, Math.floor(H * DPR));
-    g.setTransform(DPR, 0, 0, DPR, 0, 0);
-    basketW = Math.max(62, Math.min(98, W * 0.21));
-    if (!basketX) basketX = W / 2;
-    basketX = clampX(basketX);
-    targetX = basketX;
-  }
-  const clampX = (x) => Math.min(Math.max(x, basketW / 2), Math.max(basketW / 2, W - basketW / 2));
-  const basketTop = () => H - BASKET_TOP_OFFSET;
-
-  window.addEventListener('resize', resize);
-
-  function updateHud(){
-    hudScore.textContent = score;
-    hudTime.textContent  = Math.max(0, Math.ceil(timeLeft));
-    lifeRow.textContent  = '❤'.repeat(Math.max(0, lives)) + '♡'.repeat(Math.max(0, LIVES - lives));
-    lifeRow.style.color  = lives <= 1 ? '#ff5c8a' : '#ffb3cd';
-  }
-
-  function reset(){
-    items = []; sparks = [];
-    score = 0; lives = LIVES; timeLeft = DURATION;
-    spawnTimer = 400; spawnGap = 760; clock = 0;
-    resize();
-    basketX = targetX = W / 2;
-    updateHud();
-  }
-
-  function spawn(){
-    const r = Math.random();
-    let kind = 'heart';
-    if (clock > 4 && r < 0.26) kind = 'broken';
-    else if (r > 0.90)         kind = 'gold';
-
-    items.push({
-      x: 26 + Math.random() * Math.max(1, W - 52),
-      y: -30,
-      vy: 100 + Math.random() * 60 + clock * 3.6,
-      vx: (Math.random() - .5) * 34,
-      size: kind === 'gold' ? 12 : 10.5,
-      rot: (Math.random() - .5) * .5,
-      vr: (Math.random() - .5) * 1.1,
-      ph: Math.random() * Math.PI * 2,
-      kind
-    });
-  }
-
-  function addSparks(x, y, color, n){
-    for (let i = 0; i < n; i++){
-      const a = Math.random() * Math.PI * 2, s = Math.random() * 130 + 40;
-      sparks.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 40, life: 1, color, r: Math.random() * 2.4 + 1.2 });
-    }
-  }
-
-  function drawHeartItem(it){
-    if (it.kind === 'broken'){
-      heart(g, it.x, it.y - it.size * .7, it.size, it.rot, '#5f7091', .9);
-      g.save();
-      g.translate(it.x, it.y - it.size * .7);
-      g.rotate(it.rot);
-      g.strokeStyle = 'rgba(14,7,24,.9)';
-      g.lineWidth = 1.7;
-      g.beginPath();
-      g.moveTo(0, -it.size * .35);
-      g.lineTo(-it.size * .28, it.size * .45);
-      g.lineTo(it.size * .22, it.size * .85);
-      g.lineTo(-it.size * .12, it.size * 1.55);
-      g.stroke();
-      g.restore();
-      return;
-    }
-    if (it.kind === 'gold'){
-      g.save();
-      g.globalAlpha = .3;
-      g.fillStyle = '#ffc857';
-      g.beginPath();
-      g.arc(it.x, it.y + it.size * .35, it.size * 2.1, 0, Math.PI * 2);
-      g.fill();
-      g.restore();
-    }
-    const col = it.kind === 'gold' ? '#ffc857' : (it.kind === 'broken' ? '#5f7091' : '#ff4f8b');
-    heart(g, it.x, it.y - it.size * .7, it.size, it.rot, col, 1);
-  }
-
-  function drawBasket(){
-    const y = basketTop();
-    const x = basketX - basketW / 2;
-
-    g.save();
-    g.shadowColor = 'rgba(255,79,139,.85)';
-    g.shadowBlur = 22;
-    const grd = g.createLinearGradient(0, y, 0, y + 18);
-    grd.addColorStop(0, '#ff9dc0');
-    grd.addColorStop(1, '#e5306e');
-    g.fillStyle = grd;
-    g.beginPath();
-    // 圆角篮子
-    const h = 13, r = 6.5;
-    g.moveTo(x + r, y);
-    g.lineTo(x + basketW - r, y);
-    g.quadraticCurveTo(x + basketW, y, x + basketW, y + r);
-    g.lineTo(x + basketW, y + h - r);
-    g.quadraticCurveTo(x + basketW, y + h, x + basketW - r, y + h);
-    g.lineTo(x + r, y + h);
-    g.quadraticCurveTo(x, y + h, x, y + h - r);
-    g.lineTo(x, y + r);
-    g.quadraticCurveTo(x, y, x + r, y);
-    g.closePath();
-    g.fill();
-    g.restore();
-
-    // 篮子上的两颗小心
-    heart(g, basketX - 12, y - 9, 4.2, 0, '#ffd6e8', .95);
-    heart(g, basketX + 12, y - 9, 4.2, 0, '#ffd6e8', .95);
-  }
-
-  function frame(now){
-    if (phase !== 'playing') return;
-    const dt = Math.min(.05, (now - last) / 1000);
-    last = now;
-    clock += dt;
-    timeLeft -= dt;
-
-    if (keys.has('ArrowLeft'))  targetX -= 520 * dt;
-    if (keys.has('ArrowRight')) targetX += 520 * dt;
-    targetX = clampX(targetX);
-    basketX += (targetX - basketX) * Math.min(1, dt * 16);
-
-    spawnTimer -= dt * 1000;
-    if (spawnTimer <= 0){
-      spawn();
-      spawnGap = Math.max(370, spawnGap - 20);
-      spawnTimer = spawnGap;
-    }
-
-    const top = basketTop();
-    for (let i = items.length - 1; i >= 0; i--){
-      const it = items[i];
-      it.y += it.vy * dt;
-      it.x += it.vx * dt + Math.sin(clock * 2.2 + it.ph) * 22 * dt;
-      it.rot += it.vr * dt;
-
-      const cy = it.y + it.size * .35;
-      const caught = cy >= top - 6 && cy <= top + 24 &&
-                     Math.abs(it.x - basketX) <= basketW / 2 + it.size * .7;
-
-      if (caught){
-        if (it.kind === 'heart'){ score += 1; addSparks(it.x, top, '#ff6b9d', 12); }
-        else if (it.kind === 'gold'){ score += 3; addSparks(it.x, top, '#ffc857', 20); }
-        else {
-          lives -= 1;
-          addSparks(it.x, top, '#5f7091', 14);
-          lifeRow.animate(
-            [{ transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }],
-            { duration: 260 }
-          );
-        }
-        items.splice(i, 1);
-        updateHud();
-        continue;
-      }
-      if (it.y > H + 60) items.splice(i, 1);
-    }
-
-    for (let i = sparks.length - 1; i >= 0; i--){
-      const s = sparks[i];
-      s.x += s.vx * dt; s.y += s.vy * dt;
-      s.vy += 260 * dt; s.vx *= .97;
-      s.life -= dt * 2.1;
-      if (s.life <= 0) sparks.splice(i, 1);
-    }
-
-    updateHud();
-
-    /* ── 绘制 ── */
-    g.clearRect(0, 0, W, H);
-
-    for (const it of items) drawHeartItem(it);
-
-    for (const s of sparks){
-      g.globalAlpha = Math.max(0, s.life);
-      g.fillStyle = s.color;
-      g.beginPath(); g.arc(s.x, s.y, s.r * s.life + .6, 0, Math.PI * 2); g.fill();
-    }
-    g.globalAlpha = 1;
-
-    drawBasket();
-
-    // 目标进度条
-    const pw = W - 40;
-    g.fillStyle = 'rgba(255,255,255,.10)';
-    g.fillRect(20, 12, pw, 4);
-    g.fillStyle = '#ff6b9d';
-    g.fillRect(20, 12, pw * Math.min(1, score / GOAL), 4);
-
-    if (score >= GOAL) return win();
-    if (lives <= 0)    return lose('心都碎光了 💔');
-    if (timeLeft <= 0) return lose('时间到啦 ⏰');
-    raf = requestAnimationFrame(frame);
-  }
-
-  function showMask(title, textHtml, btnText){
+  /* ── 通用界面 ── */
+  function showMask(title, html, btn){
     maskTitle.innerHTML = title;
-    maskText.innerHTML  = textHtml;
-    maskBtn.textContent = btnText;
+    maskText.innerHTML  = html;
+    if (btn){ maskBtn.textContent = btn; maskBtn.style.display = ''; }
+    else    { maskBtn.style.display = 'none'; }
     mask.classList.add('show');
   }
-  function hideMask(){ mask.classList.remove('show'); }
-
-  function start(){
-    reset();
-    phase = 'playing';
-    hideMask();
-    cancelAnimationFrame(raf);
-    last = performance.now();
-    raf = requestAnimationFrame(frame);
+  const hideMask = () => mask.classList.remove('show');
+  function only(name){
+    paneCatch.classList.toggle('on', name === 'catch');
+    paneMole .classList.toggle('on', name === 'mole');
+    paneMem  .classList.toggle('on', name === 'memory');
+  }
+  function setHud(no, total, scoreText, timeText){
+    hudStage.textContent = '第 ' + no + ' / ' + total + ' 关';
+    hudScore.textContent = scoreText;
+    hudTime.textContent  = timeText;
   }
 
-  function win(){
-    phase = 'won';
-    cancelAnimationFrame(raf);
-    showMask('全部都接住啦 ✨',
-      '你的心意，我收到了。<br>现在，去拆那封信吧。', '拆信 ✉️');
-    for (let i = 0; i < 3; i++){
-      setTimeout(() => burst(W * (.25 + Math.random() * .5), H * (.2 + Math.random() * .3), 55), i * 220);
+  /* ─────────────────────────────────────────────
+     第 1 关：接住掉下来的东西（星星 / 宝石 / 炸弹）
+     ───────────────────────────────────────────── */
+  const CatchStage = (() => {
+    const cv = document.getElementById('gameCanvas');
+    const g  = cv.getContext('2d');
+    const CFG = CONFIG.games.catch;
+    const BASKET_TOP = 30;
+    const keys = new Set();
+
+    let W = 0, H = 0, DPR = 1;
+    let basketW = 84, basketX = 0, targetX = 0;
+    let items = [], sparks = [];
+    let score = 0, timeLeft = 0, clock = 0;
+    let spawnTimer = 0, spawnGap = 720;
+    let raf = null, last = 0, running = false;
+
+    const clampX = (x) => Math.min(Math.max(x, basketW / 2), Math.max(basketW / 2, W - basketW / 2));
+    const basketY = () => H - BASKET_TOP;
+
+    function resize(){
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
+      W = cv.clientWidth || 320;
+      H = cv.clientHeight || 240;
+      cv.width  = Math.max(1, Math.floor(W * DPR));
+      cv.height = Math.max(1, Math.floor(H * DPR));
+      g.setTransform(DPR, 0, 0, DPR, 0, 0);
+      basketW = Math.max(62, Math.min(100, W * 0.22));
+      if (!basketX) basketX = W / 2;
+      basketX = clampX(basketX);
+      targetX = basketX;
+    }
+    window.addEventListener('resize', () => { if (running) resize(); });
+
+    function spawn(){
+      const r = Math.random();
+      let kind = 'star';
+      if (CFG.bombs && clock > 3.5 && r < 0.24) kind = 'bomb';
+      else if (r > 0.87)                        kind = 'gem';
+      items.push({
+        x: 24 + Math.random() * Math.max(1, W - 48),
+        y: -26,
+        vy: 92 + Math.random() * 58 + clock * 4,
+        vx: (Math.random() - .5) * 40,
+        size: kind === 'gem' ? 12 : 10.5,
+        rot: (Math.random() - .5) * .6,
+        vr: (Math.random() - .5) * 1.2,
+        kind: kind
+      });
+    }
+
+    function addSparks(x, y, color, n){
+      for (let i = 0; i < n; i++){
+        const a = Math.random() * Math.PI * 2, s = Math.random() * 130 + 40;
+        sparks.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 40,
+                      life: 1, color: color, r: Math.random() * 2.4 + 1.2 });
+      }
+    }
+
+    function starPath(cx, cy, r, rot){
+      g.beginPath();
+      for (let i = 0; i < 10; i++){
+        const rr = (i % 2) ? r * .44 : r;
+        const a = rot - Math.PI / 2 + i * Math.PI / 5;
+        const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr;
+        if (i) g.lineTo(x, y); else g.moveTo(x, y);
+      }
+      g.closePath();
+    }
+    function gemPath(cx, cy, r, rot){
+      g.save(); g.translate(cx, cy); g.rotate(rot);
+      g.beginPath();
+      g.moveTo(0, -r);
+      g.lineTo(r * .84, -r * .16);
+      g.lineTo(0, r);
+      g.lineTo(-r * .84, -r * .16);
+      g.closePath();
+      g.restore();
+    }
+
+    function drawItem(it){
+      if (it.kind === 'bomb'){
+        g.save();
+        g.fillStyle = '#333856';
+        g.beginPath(); g.arc(it.x, it.y, it.size, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = 'rgba(255,255,255,.3)'; g.lineWidth = 1.2; g.stroke();
+        g.beginPath();
+        g.moveTo(it.x + it.size * .5, it.y - it.size * .7);
+        g.quadraticCurveTo(it.x + it.size * 1.35, it.y - it.size * 1.5,
+                           it.x + it.size * .55, it.y - it.size * 1.95);
+        g.strokeStyle = '#ffb454'; g.lineWidth = 2; g.stroke();
+        g.beginPath(); g.arc(it.x + it.size * .55, it.y - it.size * 2.1, 2.2, 0, Math.PI * 2);
+        g.fillStyle = '#ffd166'; g.fill();
+        g.restore();
+        return;
+      }
+      if (it.kind === 'gem'){
+        g.save();
+        g.globalAlpha = .28; g.fillStyle = '#63e6ff';
+        g.beginPath(); g.arc(it.x, it.y, it.size * 2, 0, Math.PI * 2); g.fill();
+        g.restore();
+        gemPath(it.x, it.y, it.size, it.rot);
+        g.fillStyle = '#7fe9ff'; g.fill();
+        g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 1.1; g.stroke();
+        return;
+      }
+      g.save();
+      g.globalAlpha = .3; g.fillStyle = '#ffd166';
+      g.beginPath(); g.arc(it.x, it.y, it.size * 1.9, 0, Math.PI * 2); g.fill();
+      g.restore();
+      starPath(it.x, it.y, it.size, it.rot);
+      g.fillStyle = '#ffd75e'; g.fill();
+      g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 1.1; g.stroke();
+    }
+
+    function drawBasket(){
+      const y = basketY(), x = basketX - basketW / 2, h = 16;
+      g.save();
+      g.shadowColor = 'rgba(255,79,139,.7)'; g.shadowBlur = 16;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + basketW, y);
+      g.lineTo(x + basketW * .84, y + h);
+      g.quadraticCurveTo(x + basketW / 2, y + h + 7, x + basketW * .16, y + h);
+      g.closePath();
+      const grd = g.createLinearGradient(0, y, 0, y + h);
+      grd.addColorStop(0, 'rgba(255,255,255,.34)');
+      grd.addColorStop(1, 'rgba(255,107,157,.55)');
+      g.fillStyle = grd; g.fill();
+      g.strokeStyle = 'rgba(255,220,235,.75)'; g.lineWidth = 1.4; g.stroke();
+      g.restore();
+    }
+
+    const updateHud = () => setHud(1, 3, score + ' / ' + CFG.goal, Math.max(0, Math.ceil(timeLeft)));
+
+    function finish(){
+      running = false;
+      cancelAnimationFrame(raf);
+      onStageEnd(score);
+    }
+
+    function frame(now){
+      if (!running) return;
+      const dt = Math.min(.05, (now - last) / 1000); last = now;
+      clock += dt; timeLeft -= dt;
+
+      if (keys.has('ArrowLeft'))  targetX = clampX(targetX - 480 * dt);
+      if (keys.has('ArrowRight')) targetX = clampX(targetX + 480 * dt);
+      basketX += (targetX - basketX) * (1 - Math.pow(.0015, dt));
+
+      spawnTimer -= dt * 1000;
+      if (spawnTimer <= 0){
+        spawn();
+        spawnGap = Math.max(360, 720 - clock * 9);
+        spawnTimer = spawnGap;
+      }
+
+      const by = basketY();
+      for (let i = items.length - 1; i >= 0; i--){
+        const it = items[i];
+        it.vy += 55 * dt;
+        it.y  += it.vy * dt;
+        it.x  += it.vx * dt;
+        it.rot += it.vr * dt;
+        if (it.x < 14 || it.x > W - 14) it.vx *= -1;
+
+        // 进筐判定
+        if (it.y + it.size > by - 2 && it.y < by + 22 &&
+            Math.abs(it.x - basketX) < basketW * .5){
+          if (it.kind === 'bomb'){
+            score = Math.max(0, score - 1);
+            addSparks(it.x, it.y, '#8b93b8', 16);
+          } else if (it.kind === 'gem'){
+            score += 3; addSparks(it.x, it.y, '#7fe9ff', 22);
+          } else {
+            score += 1; addSparks(it.x, it.y, '#ffd75e', 16);
+          }
+          items.splice(i, 1);
+          continue;
+        }
+        if (it.y > H + 34) items.splice(i, 1);
+      }
+
+      for (let i = sparks.length - 1; i >= 0; i--){
+        const s = sparks[i];
+        s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 240 * dt;
+        s.life -= dt * 2.1;
+        if (s.life <= 0) sparks.splice(i, 1);
+      }
+
+      updateHud();
+
+      g.clearRect(0, 0, W, H);
+      for (const it of items) drawItem(it);
+      for (const s of sparks){
+        g.globalAlpha = Math.max(0, s.life);
+        g.fillStyle = s.color;
+        g.beginPath(); g.arc(s.x, s.y, s.r * s.life + .6, 0, Math.PI * 2); g.fill();
+      }
+      g.globalAlpha = 1;
+      drawBasket();
+
+      if (score >= CFG.goal || timeLeft <= 0) return finish();
+      raf = requestAnimationFrame(frame);
+    }
+
+    cv.addEventListener('pointermove', (e) => {
+      const r = cv.getBoundingClientRect();
+      targetX = clampX(e.clientX - r.left);
+    });
+    cv.addEventListener('pointerdown', (e) => {
+      if (cv.setPointerCapture) cv.setPointerCapture(e.pointerId);
+      const r = cv.getBoundingClientRect();
+      targetX = clampX(e.clientX - r.left);
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight'){
+        keys.add(e.key);
+        if (running) e.preventDefault();
+      }
+    });
+    window.addEventListener('keyup', (e) => keys.delete(e.key));
+
+    return {
+      reset(){
+        items = []; sparks = [];
+        score = 0; clock = 0; timeLeft = CFG.time;
+        spawnTimer = 260; spawnGap = 720;
+        basketX = 0; resize(); basketX = targetX = W / 2;
+        updateHud();
+      },
+      start(){
+        resize(); running = true;
+        cancelAnimationFrame(raf);
+        last = performance.now();
+        raf = requestAnimationFrame(frame);
+      },
+      stop(){ running = false; cancelAnimationFrame(raf); }
+    };
+  })();
+
+  /* ─────────────────────────────────────────────
+     第 2 关：打地鼠
+     ───────────────────────────────────────────── */
+  const MoleStage = (() => {
+    const grid = document.getElementById('moleGrid');
+    const CFG = CONFIG.games.mole;
+    const HOLES = 9, UP_TIME = 0.95, GAP = 0.72;
+
+    let holes = [], score = 0, timeLeft = 0, clock = 0;
+    let upIndex = -1, upUntil = 0, nextPop = 0;
+    let raf = null, last = 0, running = false;
+
+    for (let i = 0; i < HOLES; i++){
+      const h = document.createElement('div');
+      h.className = 'hole';
+      const m = document.createElement('span');
+      m.className = 'mole';
+      m.textContent = '🐹';
+      h.appendChild(m);
+      grid.appendChild(h);
+      holes.push(h);
+    }
+
+    const setHole = (i, up) => holes[i].classList.toggle('up', up);
+    const updateHud = () => setHud(2, 3, score + ' / ' + CFG.goal, Math.max(0, Math.ceil(timeLeft)));
+
+    function pick(){
+      let i = upIndex;
+      while (i === upIndex && HOLES > 1) i = Math.floor(Math.random() * HOLES);
+      return i;
+    }
+
+    grid.addEventListener('click', (e) => {
+      if (!running) return;
+      const h = e.target && e.target.closest ? e.target.closest('.hole') : null;
+      if (!h) return;
+      const i = holes.indexOf(h);
+      if (i < 0 || i !== upIndex) return;
+      score++;
+      setHole(i, false);
+      upIndex = -1;
+      h.classList.add('hit');
+      setTimeout(() => h.classList.remove('hit'), 170);
+      nextPop = clock + 0.42;
+      updateHud();
+    });
+
+    function finish(){
+      running = false;
+      if (upIndex >= 0){ setHole(upIndex, false); upIndex = -1; }
+      cancelAnimationFrame(raf);
+      onStageEnd(score);
+    }
+
+    function frame(now){
+      if (!running) return;
+      const dt = Math.min(.05, (now - last) / 1000); last = now;
+      clock += dt; timeLeft -= dt;
+
+      if (upIndex >= 0 && clock >= upUntil){ setHole(upIndex, false); upIndex = -1; }
+      if (upIndex < 0 && clock >= nextPop){
+        upIndex = pick();
+        setHole(upIndex, true);
+        upUntil = clock + UP_TIME;
+        nextPop = clock + GAP;
+      }
+
+      updateHud();
+      if (score >= CFG.goal || timeLeft <= 0) return finish();
+      raf = requestAnimationFrame(frame);
+    }
+
+    return {
+      reset(){
+        for (let i = 0; i < holes.length; i++){
+          holes[i].classList.remove('up');
+          holes[i].classList.remove('hit');
+        }
+        upIndex = -1; score = 0; clock = 0; timeLeft = CFG.time; nextPop = 0.45;
+        updateHud();
+      },
+      start(){
+        running = true;
+        cancelAnimationFrame(raf);
+        last = performance.now();
+        raf = requestAnimationFrame(frame);
+      },
+      stop(){
+        running = false;
+        if (upIndex >= 0){ setHole(upIndex, false); upIndex = -1; }
+        cancelAnimationFrame(raf);
+      }
+    };
+  })();
+
+  /* ─────────────────────────────────────────────
+     第 3 关：翻牌配对（配完这一刻就是反转点）
+     ───────────────────────────────────────────── */
+  const MemoryStage = (() => {
+    const grid = document.getElementById('memGrid');
+    const CFG = CONFIG.games.memory;
+    const SYMBOLS = ['★', '◆', '●', '▲', '✦', '❖'];
+
+    let cards = [];
+    let first = null, lock = false, matched = 0;
+    let timeLeft = 0, raf = null, last = 0, running = false;
+
+    const updateHud = () => setHud(3, 3, matched + ' / ' + CFG.pairs, Math.max(0, Math.ceil(timeLeft)));
+
+    function build(){
+      grid.innerHTML = '';
+      cards = [];
+      const syms = SYMBOLS.slice(0, CFG.pairs);
+      const faces = syms.concat(syms);
+      for (let i = faces.length - 1; i > 0; i--){
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = faces[i]; faces[i] = faces[j]; faces[j] = t;
+      }
+      for (let k = 0; k < faces.length; k++){
+        const c = document.createElement('div');
+        c.className = 'card3d';
+        const inner = document.createElement('div');
+        inner.className = 'cardInner';
+        const back = document.createElement('div');
+        back.className = 'cardFace cardBack';
+        back.textContent = '?';
+        const front = document.createElement('div');
+        front.className = 'cardFace cardFront';
+        front.textContent = faces[k];
+        inner.appendChild(back);
+        inner.appendChild(front);
+        c.appendChild(inner);
+        c.dataset.sym = faces[k];
+        grid.appendChild(c);
+        cards.push(c);
+      }
+    }
+
+    grid.addEventListener('click', (e) => {
+      if (!running || lock) return;
+      const c = e.target && e.target.closest ? e.target.closest('.card3d') : null;
+      if (!c || c.classList.contains('flip') || c.classList.contains('matched')) return;
+
+      c.classList.add('flip');
+      if (!first){ first = c; return; }
+
+      const a = first, b = c;
+      first = null;
+      if (a.dataset.sym === b.dataset.sym){
+        a.classList.add('matched');
+        b.classList.add('matched');
+        matched++;
+        updateHud();
+        if (matched >= CFG.pairs) setTimeout(finish, 560);
+      } else {
+        lock = true;
+        setTimeout(() => {
+          a.classList.remove('flip');
+          b.classList.remove('flip');
+          lock = false;
+        }, 720);
+      }
+    });
+
+    function finish(){
+      if (!running) return;
+      running = false;
+      cancelAnimationFrame(raf);
+      onStageEnd(matched);
+    }
+
+    function frame(now){
+      if (!running) return;
+      const dt = Math.min(.05, (now - last) / 1000); last = now;
+      timeLeft -= dt;
+      updateHud();
+      if (timeLeft <= 0) return finish();
+      raf = requestAnimationFrame(frame);
+    }
+
+    return {
+      reset(){
+        build();
+        first = null; lock = false; matched = 0;
+        timeLeft = CFG.time;
+        updateHud();
+      },
+      start(){
+        running = true;
+        cancelAnimationFrame(raf);
+        last = performance.now();
+        raf = requestAnimationFrame(frame);
+      },
+      stop(){ running = false; cancelAnimationFrame(raf); },
+      /* 反转：所有牌依次翻成爱心 */
+      revealHearts(){
+        for (let i = 0; i < cards.length; i++){
+          (function (c, k){
+            setTimeout(() => {
+              c.classList.add('flip', 'matched', 'reveal');
+              const f = c.querySelector('.cardFront');
+              if (f) f.textContent = '♥';
+            }, k * 65);
+          })(cards[i], i);
+        }
+      }
+    };
+  })();
+
+  /* ─────────────────────────────────────────────
+     关卡调度
+     ───────────────────────────────────────────── */
+  const STAGES = [
+    { pane: 'catch',  api: CatchStage,  name: '接住掉下来的东西',
+      aLabel: '★', bLabel: '⏱', bUnit: 's',
+      tip: '移动鼠标 / 手指，或按 ← → 键控制篮子。<br>接住 <b>★</b> 得 1 分、<b>◆</b> 得 3 分，躲开 <b>炸弹</b>。' },
+    { pane: 'mole',   api: MoleStage,   name: '打地鼠',
+      aLabel: '🐹', bLabel: '⏱', bUnit: 's',
+      tip: '地鼠冒头的瞬间点它。<br>点中一只得 1 分。' },
+    { pane: 'memory', api: MemoryStage, name: '翻牌配对',
+      aLabel: '配对', bLabel: '⏱', bUnit: 's',
+      tip: '翻开两张一样的牌就能消掉。<br>全部配完就通关。' }
+  ];
+  const TOTAL = STAGES.length;
+
+  function showStage(i){
+    index = i;
+    const st = STAGES[i];
+    only(st.pane);                       // 先切面板，canvas 才有正确的尺寸
+    hudALabel.textContent = st.aLabel;
+    hudBLabel.textContent = st.bLabel;
+    hudBUnit.textContent  = st.bUnit;
+    gameTip.textContent = '第 ' + (i + 1) + ' 关 · ' + st.name;
+    st.api.reset();
+    showMask('第 ' + (i + 1) + ' 关 · ' + st.name, st.tip, '开始');
+  }
+
+  function beginStage(){
+    hideMask();
+    STAGES[index].api.start();
+  }
+
+  /* 每关结束（达成目标 或 时间到）都会走到这里，不会卡住 */
+  function onStageEnd(){
+    STAGES[index].api.stop();
+    if (index < TOTAL - 1){
+      showMask('第 ' + (index + 1) + ' 关 完成 ✓', '继续下一关…', null);
+      setTimeout(() => showStage(index + 1), 1050);
+    } else {
+      reveal();
     }
   }
 
-  function lose(reason){
-    phase = 'lost';
-    cancelAnimationFrame(raf);
-    showMask(reason,
-      '别灰心，我的爱又不是这么容易就会碎的。<br>再来一次吧 👇', '再来一次');
-  }
+  /* ── 反转：三关全部结束，画面突然翻出表白 ── */
+  function reveal(){
+    // 1. 桌上所有的牌一起变成爱心
+    MemoryStage.revealHearts();
 
-  maskBtn.addEventListener('click', () => {
-    if (phase === 'won'){
-      hideMask();
+    // 2. 满屏粉光闪一下
+    flash.classList.remove('on');
+    void flash.offsetWidth;      // 强制重排，让动画能重复播放
+    flash.classList.add('on');
+
+    // 3. 背景连放几波爱心
+    for (let i = 0; i < 4; i++){
+      setTimeout(() => {
+        burst(W * (.2 + Math.random() * .6), H * (.2 + Math.random() * .42), 60);
+      }, 260 + i * 210);
+    }
+
+    // 4. 进入情书
+    setTimeout(() => {
+      flash.classList.remove('on');
+      mask.classList.remove('show');
       go('sceneLetter');
       playLetter();
-    } else {
-      start();
+    }, 1800);
+  }
+
+  /* 第一次点击「开始」：用户手势，正好用来启动音乐 */
+  maskBtn.addEventListener('click', () => {
+    if (!musicStarted){
+      musicStarted = true;
+      startMusic();
     }
+    beginStage();
   });
 
-  /* 控制：鼠标 / 触摸 / 方向键 */
-  cv.addEventListener('pointermove', (e) => {
-    const r = cv.getBoundingClientRect();
-    targetX = clampX(e.clientX - r.left);
-  });
-  cv.addEventListener('pointerdown', (e) => {
-    cv.setPointerCapture && cv.setPointerCapture(e.pointerId);
-    const r = cv.getBoundingClientRect();
-    targetX = clampX(e.clientX - r.left);
-  });
-
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys.add(e.key);
-  });
-  window.addEventListener('keyup', (e) => keys.delete(e.key));
+  /* 页面入口 */
+  function begin(){
+    go('sceneGame');
+    showStage(0);
+  }
 
   return {
-    begin(){ go('sceneGame'); reset(); phase = 'idle'; showMask('帮我接住这些心 🧺', '移动鼠标 / 手指，或按 ← → 键来移动篮子。<br>接住 <b>爱心</b> 得分，别接 <b>碎裂的心</b> 哦。', '开始'); },
-    abort(){ phase = 'idle'; cancelAnimationFrame(raf); },
-    resetAll(){ reset(); phase = 'idle'; }
+    begin: begin,
+    /* 重新玩一遍 */
+    restart(){
+      CatchStage.stop(); MoleStage.stop(); MemoryStage.stop();
+      index = -1;
+      musicStarted = true;      // 音乐已经在放了，不用再启动一次
+      begin();
+    }
   };
 })();
 
 /* ══════════════ 流程控制 ══════════════ */
-const openBtn   = document.getElementById('openBtn');
 const toAskBtn  = document.getElementById('toAskBtn');
 const letterBox = document.getElementById('letterBox');
 
-document.getElementById('introTitle').textContent = CONFIG.introTitle;
 document.getElementById('askText').textContent = CONFIG.question;
 document.getElementById('finalTitle').textContent = CONFIG.finalTitle;
+
+/* 启动背景音乐：必须在用户的手势里同步发起，否则浏览器会拒绝播放。
+   整个流程只调用一次（在小游戏第一次点「开始」的时候）。 */
+function startMusic(){
+  try {
+    const p = Music.start();
+    if (p && typeof p.then === 'function'){
+      p.then((playing) => {
+        musicBtn.textContent = playing ? '🎵' : '🔇';
+        musicBtn.classList.toggle('paused', !playing);
+      }).catch((err) => console.warn('音乐启动失败（不影响页面）:', err));
+    }
+  } catch (err){
+    console.warn('音乐启动异常（不影响页面）:', err);
+  }
+}
 
 async function playLetter(){
   go('sceneLetter');
   letterBox.innerHTML = '';
   await wait(500);
 
-  for (const raw of CONFIG.introLines){
+  for (const raw of CONFIG.letterLines){
     const text = T(raw);
     const p = document.createElement('p');
     p.className = 'line';
@@ -1214,24 +1592,6 @@ async function playLetter(){
   await wait(400);
   toAskBtn.style.display = 'inline-flex';
 }
-
-openBtn.addEventListener('click', () => {
-  // 先无条件推进流程：不管音乐出什么问题，这个按钮都必须有反应
-  Game.begin();
-
-  // 再尝试启动音乐。必须在这个点击的手势里同步发起，否则浏览器会拒绝播放
-  try {
-    const p = Music.start();
-    if (p && typeof p.then === 'function'){
-      p.then((playing) => {
-        musicBtn.textContent = playing ? '🎵' : '🔇';
-        musicBtn.classList.toggle('paused', !playing);
-      }).catch((err) => { console.warn('音乐启动失败（不影响页面）:', err); });
-    }
-  } catch (err){
-    console.warn('音乐启动异常（不影响页面）:', err);
-  }
-});
 
 toAskBtn.addEventListener('click', () => {
   go('sceneAsk');
@@ -1335,21 +1695,25 @@ document.getElementById('replayBtn').addEventListener('click', () => {
   bursts.length = 0;
   letterBox.innerHTML = '';
   toAskBtn.style.display = 'none';
-  Game.abort();
-  Game.resetAll();
-  go('sceneIntro');
+  Games.restart();
 });
 
-/* ── 键盘小彩蛋：空格直接进入下一幕 ── */
+/* ── 键盘彩蛋：空格推进当前这一步 ── */
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'Space') return;
   e.preventDefault();
-  if (document.getElementById('sceneIntro').classList.contains('active')){
-    openBtn.click();
+  if (document.getElementById('sceneGame').classList.contains('active')){
+    const mb = document.getElementById('maskBtn');
+    if (mb && mb.style.display !== 'none' && document.getElementById('gameMask').classList.contains('show')){
+      mb.click();
+    }
   } else if (document.getElementById('sceneLetter').classList.contains('active')){
     if (toAskBtn.style.display !== 'none') toAskBtn.click();
   }
 });
+
+/* ── 启动：页面一打开，直接就是小游戏 ── */
+Games.begin();
 </script>
 </body>
 </html>
