@@ -815,7 +815,12 @@ const Music = (() => {
     clearInterval(timer); timer = null;
   }
 
-  /* ───────── 外部歌曲文件 ───────── */
+  /* ───────── 外部歌曲文件 ─────────
+     这里的关键：必须在用户手势里「立刻」调用 play()，
+     不能等文件加载完再放——等的过程会错过浏览器的手势窗口，
+     而且慢网络下「等缓冲完」可能永远等不到，就白白放不出歌了。
+     正确做法是：立刻 play()，让浏览器自己边下边播；
+     同时用内置音乐兜底，等歌曲真的出声了再无缝切过去。 */
   function fadeTo(el, target, ms){
     const from = el.volume, t0 = performance.now();
     (function run(){
@@ -825,81 +830,128 @@ const Music = (() => {
     })();
   }
 
-  function playFile(){
-    return new Promise((resolve) => {
-      if (!fileEl || !CONFIG.bgmFile) return resolve(false);
+  let fileStarted  = false;   // 歌曲是否真的开始出声
+  let filePending  = false;   // 是否正在等歌曲出声
+  let stopgapTimer = null;    // 兜底计时器
 
-      let settled = false;
-      const finish = (ok) => { if (!settled){ settled = true; resolve(ok); } };
+  /* 立刻发起播放，不等待任何加载状态 */
+  function tryPlayFile(){
+    if (!fileEl || !CONFIG.bgmFile || filePending) return Promise.resolve(false);
+    filePending = true;
+    fileEl.volume = 0;
+    let p;
+    try { p = fileEl.play(); }
+    catch (err){ filePending = false; console.warn('歌曲播放异常:', err); return Promise.resolve(false); }
 
-      const onReady = () => {
-        if (settled) return;
-        fileEl.volume = 0;
-        const p = fileEl.play();
-        if (p && typeof p.then === 'function'){
-          p.then(() => { fadeTo(fileEl, CONFIG.bgmVolume, 1600); finish(true); })
-           .catch(() => finish(false));
-        } else {
-          fadeTo(fileEl, CONFIG.bgmVolume, 1600);
-          finish(true);
-        }
-      };
-
-      fileEl.addEventListener('error', () => finish(false), { once: true });
-      fileEl.addEventListener('canplaythrough', onReady, { once: true });
-
-      if (fileEl.readyState >= 3) onReady();          // 已经加载好了
-      else if (fileEl.readyState === 0) fileEl.load(); // 还没开始加载
-
-      setTimeout(() => finish(false), 5000);           // 5 秒还不行就先用内置音乐
-    });
+    const done = (ok) => { filePending = false; return ok; };
+    if (p && typeof p.then === 'function') return p.then(() => done(true)).catch(() => done(false));
+    // 老浏览器 play() 不返回 Promise
+    filePending = false;
+    return Promise.resolve(true);
   }
 
+  /* 切到歌曲：内置音乐淡出，歌曲淡入 */
+  function switchToFile(){
+    const wasSynth = (mode === 'synth');
+    if (wasSynth) synthStop();
+    if (stopgapTimer){ clearTimeout(stopgapTimer); stopgapTimer = null; }
+    mode = 'file';
+    on = true;
+    fadeTo(fileEl, CONFIG.bgmVolume, wasSynth ? 1500 : 1100);
+    console.log('♪ 背景音乐：' + CONFIG.bgmFile);
+  }
+
+  /* 先用内置音乐垫着（歌曲一旦就绪会自动切过去） */
   function fallbackToSynth(){
+    if (stopgapTimer){ clearTimeout(stopgapTimer); stopgapTimer = null; }
+    if (mode === 'synth'){ if (!on) on = synthStart(); return on; }
+    if (mode === 'file') return on;          // 歌曲正在放，不用兜底
     mode = 'synth';
     on = synthStart();
-    console.log(on ? '♪ 背景音乐：未找到歌曲文件，使用内置合成音乐'
+    console.log(on ? '♪ 背景音乐：歌曲还没就绪，先用内置合成音乐垫着'
                   : '♪ 背景音乐：播放失败（不影响页面使用）');
     return on;
   }
 
-  function useFile(){
-    mode = 'file';
-    on = true;
-    console.log('♪ 背景音乐：正在播放 ' + CONFIG.bgmFile);
-    return true;
+  if (fileEl){
+    /* 歌曲真的开始出声了 —— 如果这时在放内置音乐，就无缝换掉 */
+    fileEl.addEventListener('playing', () => {
+      fileStarted = true;
+      filePending = false;
+      if (stopgapTimer){ clearTimeout(stopgapTimer); stopgapTimer = null; }
+      if (mode !== 'file') switchToFile();
+      else { on = true; fadeTo(fileEl, CONFIG.bgmVolume, 900); }
+    });
+
+    /* 文件真的坏了（找不到 / 格式不支持）才彻底放弃 */
+    fileEl.addEventListener('error', () => {
+      fileStarted = false;
+      filePending = false;
+      if (!CONFIG.bgmFile) return;
+      console.warn('♪ 歌曲文件无法播放，改用内置音乐');
+      if (mode !== 'file') fallbackToSynth();
+    });
+
+    /* 兜底：万一首次自动播放被浏览器拦下，之后用户任何一次点击都再试一次 */
+    const retryFile = () => {
+      if (mode === 'synth' && !fileStarted && !filePending && CONFIG.bgmFile) {
+        tryPlayFile().then(ok => { if (ok) switchToFile(); });
+      }
+    };
+    document.addEventListener('pointerdown', retryFile, true);
+    document.addEventListener('touchstart',  retryFile, true);
+    document.addEventListener('keydown',     retryFile, true);
   }
 
-  /* 注意：start() 会在点击事件里被同步调用。
-     「歌曲已预加载完成」这条分支必须在任何 await 之前执行完，
+  /* 注意：start() 会在点击事件里被同步调用，
+     所以第一句就发起 play()，中间不能有任何 await，
      否则会脱离浏览器的用户手势窗口，iOS / 微信里就会播放失败。 */
   function start(){
-    if (on) return Promise.resolve(true);
-
-    // 之前已经在用歌曲：直接继续放
-    if (mode === 'file'){
-      fileEl.volume = CONFIG.bgmVolume;
-      const p = fileEl.play();
-      return (p && typeof p.then === 'function')
-        ? p.then(() => { on = true; return true; }).catch(() => false)
-        : Promise.resolve(true);
-    }
-    if (mode === 'synth'){ on = synthStart(); return Promise.resolve(on); }
-
-    // 首次播放：歌曲已经预加载好了 → 立刻同步播放
-    if (CONFIG.bgmFile && fileEl && fileEl.readyState >= 3){
+    // 已经确定在用歌曲 → 直接续播
+    if (mode === 'file' && fileEl){
       fileEl.volume = 0;
-      const p = fileEl.play();
+      let p;
+      try { p = fileEl.play(); } catch (err){ p = null; }
       if (p && typeof p.then === 'function'){
-        return p.then(() => { fadeTo(fileEl, CONFIG.bgmVolume, 1600); return useFile(); })
-                .catch(() => fallbackToSynth());
+        return p.then(() => { fileEl.volume = CONFIG.bgmVolume; on = true; return true; })
+                .catch(() => { fallbackToSynth(); return on; });
       }
-      fadeTo(fileEl, CONFIG.bgmVolume, 1600);
-      return Promise.resolve(useFile());
+      fileEl.volume = CONFIG.bgmVolume; on = true;
+      return Promise.resolve(true);
     }
 
-    // 歌曲还没加载好（或没配置）→ 异步等它，等不到就用内置音乐
-    return playFile().then(ok => ok ? useFile() : fallbackToSynth());
+    // 之前在用内置音乐 → 续播，同时顺便再试一次歌曲
+    if (mode === 'synth'){
+      on = synthStart();
+      if (!fileStarted) tryPlayFile().then(ok => { if (ok) switchToFile(); });
+      return Promise.resolve(on);
+    }
+
+    /* ── 首次播放 ── */
+    const attempt = tryPlayFile();
+
+    // 兜底：2.6 秒还没出声就先用内置音乐垫着（歌曲一旦出声会自动切过去）
+    stopgapTimer = setTimeout(() => {
+      stopgapTimer = null;
+      if (!fileStarted) fallbackToSynth();
+    }, 2600);
+
+    attempt.then(ok => {
+      if (stopgapTimer){ clearTimeout(stopgapTimer); stopgapTimer = null; }
+      if (ok) switchToFile();
+      else if (!fileStarted) fallbackToSynth();
+    });
+
+    return attempt;
+  }
+
+  function stop(){
+    if (fileEl){
+      fadeTo(fileEl, 0, 400);
+      setTimeout(() => { try { fileEl.pause(); } catch (e){} }, 430);
+    }
+    if (mode === 'synth') synthStop();
+    on = false;
   }
 
   function stop(){
