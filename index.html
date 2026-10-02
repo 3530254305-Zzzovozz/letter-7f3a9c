@@ -5,7 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1a0b2e">
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
-<title>给你的一封信 💌</title>
+<!-- 注意：这个标题就是微信里转发时预览卡片上显示的文字。
+     千万不要写成「给你的一封信」之类，否则她还没点开就知道是什么了。
+     要保持「就是个小游戏」的错觉。 -->
+<title>你能通三关吗？</title>
+<meta name="description" content="三个小关卡，看看你能过几关。">
+<meta property="og:title" content="你能通三关吗？">
+<meta property="og:description" content="三个小关卡，看看你能过几关。">
+<meta property="og:type" content="website">
 <script>
 /* 兜底诊断：脚本一旦报错就在页面底部显示出来，方便截图反馈。
    这里刻意用最老的 ES5 语法写，保证在旧浏览器里也能正常显示。
@@ -1567,6 +1574,8 @@ const Games = (() => {
     setTimeout(() => {
       flash.classList.remove('on');
       mask.classList.remove('show');
+      // 微信浏览器顶部会显示页面标题，反转的这一刻让它跟着变
+      try { document.title = '给你的一封信 💌'; } catch (e){}
       go('sceneLetter');
       playLetter();
     }, 1800);
