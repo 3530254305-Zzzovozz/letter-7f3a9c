@@ -426,6 +426,20 @@ const CONFIG = {
     '你不用急着回答，也不用觉得有压力。这些话，我不想再瞒着你了。',
   ],
 
+  /* ── 万能版情书 ──
+     不含任何具体事件，发给谁都能用。网址后面加 ?v=wan 就会换成这一套。
+     同样是照着「说出来而不是写出来」的原则写的。 */
+  letterLinesWan: [
+    '{to}，对不起——刚才那个游戏，是骗你的。',
+    '我不是想让你玩什么游戏。我就是想找个理由，让你多待一会儿。',
+    '这事我憋了挺久了。',
+    '我发现自己总是想找你说话。没什么正事也想找你，你不回我就会一直看手机。',
+    '你随口说过的一些小事，我居然都记得。有些连你自己都忘了吧。',
+    '每次见你，我心里就特别安稳。不用说什么，你在旁边就行。',
+    '我不知道你把我当什么，可能只是朋友。但我还是想让你知道——我喜欢你。',
+    '你不用急着回答，也不用觉得有压力。这些话，我不想再瞒着你了。',
+  ],
+
   // 表白问题
   question: '那你……愿意做我女朋友吗？',
 
@@ -468,6 +482,13 @@ const CONFIG = {
   if (p.get('to'))   CONFIG.to   = p.get('to');
   if (p.get('from')) CONFIG.from = p.get('from');
 })();
+
+/* ── 两套情书 ──
+   不带参数            = 专属版（写的是你们之间真实发生过的事）
+   网址加 ?v=wan       = 万能版（不含具体事件，发给谁都能用）
+   两套共用同一个页面，改 bug 只需要改一处。 */
+const USE_WAN = /(^|[?&])v=wan(&|=|$)/.test(location.search);
+const LETTER_LINES = (USE_WAN && CONFIG.letterLinesWan) ? CONFIG.letterLinesWan : CONFIG.letterLines;
 
 const T = (s) => s.replace(/\{to\}/g, CONFIG.to).replace(/\{from\}/g, CONFIG.from);
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
@@ -1647,7 +1668,7 @@ async function playLetter(){
   letterBox.innerHTML = '';
   await wait(500);
 
-  for (const raw of CONFIG.letterLines){
+  for (const raw of LETTER_LINES){
     const text = T(raw);
     const p = document.createElement('p');
     p.className = 'line';
