@@ -976,14 +976,12 @@ musicBtn.addEventListener('click', () => {
   try {
     const p = Music.toggle();
     if (p && typeof p.then === 'function'){
-      p.then((playing) => {
-        musicBtn.textContent = playing ? '🎵' : '🔇';
-        musicBtn.classList.toggle('paused', !playing);
-      }).catch((err) => console.warn('音乐切换失败:', err));
+      p.then(setMusicIcon).catch((err) => console.warn('音乐切换失败:', err));
     }
   } catch (err){
     console.warn('音乐切换异常:', err);
   }
+  watchMusicIcon();
 });
 
 /* ══════════════ 场景切换 ══════════════ */
@@ -1604,18 +1602,29 @@ document.getElementById('finalTitle').textContent = CONFIG.finalTitle;
 
 /* 启动背景音乐：必须在用户的手势里同步发起，否则浏览器会拒绝播放。
    整个流程只调用一次（在小游戏第一次点「开始」的时候）。 */
+function setMusicIcon(playing){
+  musicBtn.textContent = playing ? '🎵' : '🔇';
+  musicBtn.classList.toggle('paused', !playing);
+}
+
+/* 慢网络下歌曲可能几秒后才真正出声（先用内置音乐垫着），
+   所以图标不能只看 start() 的返回值，要跟着实际状态走。 */
+function watchMusicIcon(){
+  let ticks = 0;
+  const iv = setInterval(() => {
+    if (Music.isOn()){ setMusicIcon(true); clearInterval(iv); }
+    else if (++ticks > 40) clearInterval(iv);   // 最多盯 20 秒
+  }, 500);
+}
+
 function startMusic(){
   try {
     const p = Music.start();
-    if (p && typeof p.then === 'function'){
-      p.then((playing) => {
-        musicBtn.textContent = playing ? '🎵' : '🔇';
-        musicBtn.classList.toggle('paused', !playing);
-      }).catch((err) => console.warn('音乐启动失败（不影响页面）:', err));
-    }
+    if (p && typeof p.then === 'function') p.then(setMusicIcon).catch(() => {});
   } catch (err){
     console.warn('音乐启动异常（不影响页面）:', err);
   }
+  watchMusicIcon();
 }
 
 async function playLetter(){
