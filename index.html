@@ -515,40 +515,140 @@ const Music = (() => {
     fileEl.load();
   }
 
-  /* ───────── 内置合成音乐 ───────── */
-  const CHORDS = [
-    [261.63, 329.63, 392.00], // C
-    [220.00, 261.63, 329.63], // Am
-    [174.61, 220.00, 261.63], // F
-    [196.00, 246.94, 293.66], // G
-  ];
-  const PATTERN = [0, 1, 2, 1, 2, 0, 1, 2];
+  /* ───────── 内置音乐：怀旧木吉他 ─────────
+     用 Karplus-Strong 物理建模合成拨弦音色（噪声脉冲 + 延迟线 + 均值滤波）。
+     注意：不能在 Web Audio 里直接搭延迟反馈回路——规范规定回路中的
+     DelayNode 最小延迟为 128 采样，会导致 375Hz 以上的音全部走音。
+     所以这里在 JS 里把拨弦波形渲染成 AudioBuffer，再按时间点播放。
+     和声进行与分解和弦均为原创，不涉及任何现有歌曲的旋律。          */
 
-  function note(freq, time, dur, vol){
-    const o = actx.createOscillator();
-    const g = actx.createGain();
-    const f = actx.createBiquadFilter();
-    o.type = 'triangle';
-    o.frequency.value = freq;
-    f.type = 'lowpass';
-    f.frequency.value = 1900;
-    g.gain.setValueAtTime(0.0001, time);
-    g.gain.exponentialRampToValueAtTime(vol, time + 0.04);
-    g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
-    o.connect(f); f.connect(g); g.connect(master);
-    o.start(time); o.stop(time + dur + 0.05);
+  const TEMPO  = 62;                 // BPM，慢一点更有旧时光的感觉
+  const EIGHTH = 60 / TEMPO / 2;     // 一个八分音符的秒数
+
+  // 四小节循环：Cmaj7 → Am7 → Fmaj7 → G
+  // bass 用真实吉他的低把位音（C3 / A2 / F2 / G2）
+  const PROG = [
+    { bass: 130.81, arp: [329.63, 392.00, 493.88, 659.25] }, // Cmaj7
+    { bass: 110.00, arp: [329.63, 392.00, 523.25, 659.25] }, // Am7
+    { bass:  87.31, arp: [349.23, 440.00, 523.25, 698.46] }, // Fmaj7
+    { bass:  98.00, arp: [293.66, 392.00, 493.88, 587.33] }, // G
+  ];
+  const ARP = [0, 1, 2, 3, 2, 1, 2]; // 第 1 拍拨低音，其余 7 个八分音符的分解顺序
+
+  let bus = null, nextStepTime = 0;
+  const pluckCache = new Map();
+
+  // 生成一段衰减噪声，当作房间混响的脉冲响应
+  function makeIR(seconds, decay){
+    const len = Math.floor(actx.sampleRate * seconds);
+    const buf = actx.createBuffer(2, len, actx.sampleRate);
+    for (let ch = 0; ch < 2; ch++){
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++){
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+      }
+    }
+    return buf;
   }
 
-  function tick(){
-    const chord = CHORDS[Math.floor(step / 8) % CHORDS.length];
-    const idx = PATTERN[step % 8];
-    const now = actx.currentTime + 0.05;
+  /* Karplus-Strong：把一根弦的振动渲染成一段音频波形（同样的音只渲染一次）
+     用分数延迟 + 线性插值，保证音高精确；若用整数延迟，高音会偏低约 10 音分 */
+  function renderPluck(freq, dur){
+    const key = freq.toFixed(2) + '|' + dur.toFixed(2);
+    if (pluckCache.has(key)) return pluckCache.get(key);
 
-    note(chord[idx] * 2, now, 1.1, 0.075);                   // 高音旋律
-    if (step % 8 === 0) note(chord[0] / 2, now, 2.4, 0.09);  // 低音铺底
-    if (step % 4 === 2) note(chord[2] * 2, now, .9, 0.04);   // 装饰音
+    const sr  = actx.sampleRate;
+    const len = Math.floor(sr * dur);
+    const buf = actx.createBuffer(1, len, sr);
+    const out = buf.getChannelData(0);
 
-    step++;
+    // 延迟线长度 = 弦的振动周期。均值滤波会额外带来 0.5 个采样的延迟，所以要减掉
+    const D    = Math.max(2, sr / freq - 0.5);
+    const size = Math.ceil(D) + 2;
+    const line = new Float32Array(size);
+    for (let i = 0; i < size; i++) line[i] = Math.random() * 2 - 1;  // 拨片触弦的噪声激励
+
+    const decay = 0.998;         // 每经过一个周期的衰减量（越大余音越长）
+    let idx = 0, prev = 0, peak = 0;
+
+    for (let i = 0; i < len; i++){
+      // 读取 D 个采样之前的值，用线性插值实现分数延迟
+      const rp = idx + size - D;
+      const f0 = Math.floor(rp);
+      const i0 = ((f0 % size) + size) % size;
+      const i1 = (i0 + 1) % size;
+      const fr = rp - f0;
+      const delayed = line[i0] + (line[i1] - line[i0]) * fr;
+
+      // 相邻两点取平均 → 高次谐波衰减更快，正是真实琴弦的听感
+      line[idx] = 0.5 * (delayed + prev) * decay;
+      prev = delayed;
+      out[i] = delayed;
+
+      const a = delayed < 0 ? -delayed : delayed;
+      if (a > peak) peak = a;
+      idx = (idx + 1) % size;
+    }
+
+    // 归一化 + 收尾淡出，避免缓冲结束时的爆音
+    const norm = peak > 0 ? 0.9 / peak : 1;
+    const fade = Math.min(len, Math.floor(sr * 0.15));
+    for (let i = 0; i < len; i++){
+      let v = out[i] * norm;
+      if (i > len - fade) v *= (len - i) / fade;
+      out[i] = v;
+    }
+
+    pluckCache.set(key, buf);
+    return buf;
+  }
+
+  /* 拨一根弦 */
+  function pluck(freq, time, dur, vol){
+    const src = actx.createBufferSource();
+    src.buffer = renderPluck(freq, dur);
+
+    const g = actx.createGain();
+    g.gain.value = vol;
+
+    src.connect(g);
+    g.connect(bus);
+    src.start(time);
+
+    setTimeout(() => { try { g.disconnect(); src.disconnect(); } catch (e){} },
+      Math.max(0, (time - actx.currentTime + dur + 0.2) * 1000));
+  }
+
+  function scheduleStep(i, time){
+    const bar = Math.floor(i / 8) % PROG.length;
+    const pos = i % 8;
+    const ch  = PROG[bar];
+
+    // 轻微的时间与力度浮动，听起来像人在弹而不是机器在跑
+    const t = time + (Math.random() - 0.5) * 0.014;
+
+    if (pos === 0){                                  // 第 1 拍：低音弦 + 高音
+      pluck(ch.bass,   t,        3.0, 0.30);
+      pluck(ch.arp[0], t + 0.005, 2.4, 0.15);
+    } else if (pos === 4){                           // 第 3 拍：低音弦再来一次
+      pluck(ch.bass,   t,        2.6, 0.22);
+      pluck(ch.arp[2], t + 0.005, 2.2, 0.14);
+    } else {                                         // 其余八分音符：分解和弦
+      pluck(ch.arp[ARP[(pos - 1) % ARP.length]], t, 2.2, 0.13 + Math.random() * 0.05);
+    }
+
+    // 每两小节收尾时透出一个高音，像泛音
+    if (pos === 6 && bar % 2 === 1) pluck(ch.arp[3] * 2, t + 0.012, 2.8, 0.07);
+  }
+
+  // 提前 0.4 秒排程，避免 setInterval 抖动导致节奏不稳
+  function scheduler(){
+    if (!actx) return;
+    while (nextStepTime < actx.currentTime + 0.4){
+      scheduleStep(step, nextStepTime);
+      nextStepTime += EIGHTH;
+      step++;
+    }
   }
 
   function synthStart(){
@@ -557,24 +657,41 @@ const Music = (() => {
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return false;
         actx = new AC();
+
+        bus = actx.createBiquadFilter();      // 柔化高频，木头味更足
+        bus.type = 'lowpass';
+        bus.frequency.value = 5200;
+        bus.Q.value = 0.4;
+
+        const dry  = actx.createGain(); dry.gain.value = 0.85;
+        const conv = actx.createConvolver();
+        conv.buffer = makeIR(2.4, 2.6);       // 房间混响
+        const wet  = actx.createGain(); wet.gain.value = 0.30;
+
         master = actx.createGain();
         master.gain.value = 0.0;
-        // 简单的空间感
-        const delay = actx.createDelay();
-        delay.delayTime.value = 0.28;
-        const fb = actx.createGain();
-        fb.gain.value = 0.28;
-        const wet = actx.createGain();
-        wet.gain.value = 0.32;
-        master.connect(actx.destination);
-        master.connect(delay); delay.connect(fb); fb.connect(delay);
-        delay.connect(wet); wet.connect(actx.destination);
+
+        const comp = actx.createDynamicsCompressor();  // 防止叠加削波
+        comp.threshold.value = -14;
+        comp.knee.value = 14;
+        comp.ratio.value = 4;
+        comp.attack.value = 0.005;
+        comp.release.value = 0.25;
+
+        bus.connect(dry);  dry.connect(master);
+        bus.connect(conv); conv.connect(wet); wet.connect(master);
+        master.connect(comp); comp.connect(actx.destination);
       }
+
       if (actx.state === 'suspended') actx.resume();
       master.gain.cancelScheduledValues(actx.currentTime);
       master.gain.setValueAtTime(master.gain.value, actx.currentTime);
-      master.gain.linearRampToValueAtTime(0.9, actx.currentTime + 1.5);
-      if (!timer) timer = setInterval(tick, 300);
+      master.gain.linearRampToValueAtTime(0.85, actx.currentTime + 2.0);
+
+      if (!timer){
+        nextStepTime = actx.currentTime + 0.12;
+        timer = setInterval(scheduler, 90);
+      }
       return true;
     } catch (err){
       console.warn('内置音乐启动失败（不影响使用）:', err);
@@ -586,7 +703,7 @@ const Music = (() => {
     if (!actx) return;
     master.gain.cancelScheduledValues(actx.currentTime);
     master.gain.setValueAtTime(master.gain.value, actx.currentTime);
-    master.gain.linearRampToValueAtTime(0.0, actx.currentTime + 0.5);
+    master.gain.linearRampToValueAtTime(0.0, actx.currentTime + 0.6);
     clearInterval(timer); timer = null;
   }
 
