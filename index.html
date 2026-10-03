@@ -396,7 +396,7 @@
   <div class="card">
     <p class="bigAsk" id="askText"></p>
     <div class="btnRow">
-      <button class="btn" id="okBtn">嗯</button>
+      <button class="btn" id="okBtn">你真是个可爱的🐷</button>
     </div>
   </div>
 </section>
@@ -466,6 +466,14 @@ const CONFIG = {
      所以：把话说完，然后把压力收回来。 */
   releaseText:
     '谢谢你，看到最后。\n\n这封信不是要你回答什么。\n\n我只是……今天特别想让你知道而已。',
+
+  /* 收尾那一屏唯一的按钮上的字。
+     写「嗯」太冷了，像公事公办。
+     换成一句调侃，整页的分量一下就卸掉了 ——
+     她刚看完一封很重的信，最怕的是「以后我们还怎么做朋友」，
+     而你还敢叫她猪，就等于告诉她：什么都没变。
+     想换词就改这一行。 */
+  okText: '你真是个可爱的🐷',
 
   // ── 背景音乐 ──
   // 把歌曲文件放到和 index.html 同一个文件夹，命名 bgm.mp3，就会自动播放这首歌。
@@ -2251,6 +2259,7 @@ const renderLines = (el, s) =>
 
 askText.innerHTML      = renderLines(askText, CONFIG.releaseText) || askText.innerHTML;
 finalTitleEl.textContent = CONFIG.finalTitle;
+document.getElementById('okBtn').textContent = CONFIG.okText;
 
 /* ── 「嗯」：温柔收尾，不追问 ── */
 document.getElementById('okBtn').addEventListener('click', () => {
